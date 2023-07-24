@@ -38,8 +38,11 @@ export default class Foyer {
       const [x, width] = topSideWalls[i]
       const wall = new THREE.Mesh(
         new THREE.PlaneGeometry(width, height, 1, 1),
-        new THREE.MeshBasicMaterial({ color: 0x00ffff })
+        new THREE.MeshPhongMaterial({ color: 0xffffff })
       )
+      const light = new THREE.PointLight(0xcc5500, 1, 90)
+      light.castShadow = true;
+      wall.add(light);
       this.floor.add(wall)
       wall.rotation.x = -Math.PI / 2
       wall.rotation.y = Math.PI / 2
@@ -53,8 +56,11 @@ export default class Foyer {
       const [x, width] = bottomSideWalls[i]
       const wall = new THREE.Mesh(
         new THREE.PlaneGeometry(width, height, 1, 1),
-        new THREE.MeshBasicMaterial({ color: 0x00ff00 })
+        new THREE.MeshPhongMaterial({ color: 0xffffff })
       )
+      const light = new THREE.PointLight(0xcc5500, 1, 90)
+      light.castShadow = true;
+      wall.add(light);
       this.floor.add(wall)
       wall.rotation.x = -Math.PI / 2
       wall.rotation.y = Math.PI / -2

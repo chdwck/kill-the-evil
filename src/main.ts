@@ -26,6 +26,7 @@ export class KillTheEvil {
   camera: THREE.PerspectiveCamera;
   scene: THREE.Scene;
   hero: THREE.Mesh;
+  enemy: THREE.Mesh;
 
   constructor() {
     const width = window.innerWidth;
@@ -50,21 +51,9 @@ export class KillTheEvil {
 
     this.scene = new THREE.Scene();
 
-    const skyColor = 0xb3ffd7;
-    const groundColor = 0xb97a20;
-    const light = new THREE.HemisphereLight(skyColor, groundColor, 1);
-    this.scene.add(light);
-
     const controls = new OrbitControls(this.camera, canvas);
     controls.target.set(0, 0, 0);
     controls.update();
-
-    const gui = new GUI();
-    gui.addColor(new ColorGUIHelper(light, "color"), "value").name("skyColor");
-    gui
-      .addColor(new ColorGUIHelper(light, "groundColor"), "value")
-      .name("groundColor");
-    gui.add(light, "intensity", 0, 2, 0.01);
 
     const hero = new THREE.Mesh(
       new THREE.BoxGeometry(2, 2, 2),
@@ -78,6 +67,19 @@ export class KillTheEvil {
     hero.receiveShadow = true;
     this.scene.add(hero);
     this.hero = hero;
+    
+    const enemy = new THREE.Mesh(
+      new THREE.BoxGeometry(2, 2, 2),
+      new THREE.MeshPhongMaterial({
+        color: 0xbada55,
+      }),
+    );
+
+    enemy.position.set(3, 1, 0);
+    enemy.castShadow = true;
+    enemy.receiveShadow = true;
+    this.scene.add(enemy);
+    this.enemy = enemy;
     // this.camera.lookAt(hero.position)
 
     const foyer = new Foyer(20);
