@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 import { GUI } from "lil-gui";
+import Foyer from "./rooms/Foyer";
 
 class ColorGUIHelper {
   private light: THREE.HemisphereLight;
@@ -45,6 +46,7 @@ export class KillTheEvil {
     const far = 1000.0;
     this.camera = new THREE.PerspectiveCamera(fov, aspect, near, far);
     this.camera.position.set(75, 20, 0);
+    // this.camera.position.set(15, 8, 0);
 
     this.scene = new THREE.Scene();
 
@@ -64,15 +66,6 @@ export class KillTheEvil {
       .name("groundColor");
     gui.add(light, "intensity", 0, 2, 0.01);
 
-    const plane = new THREE.Mesh(
-      new THREE.PlaneGeometry(1000, 1000, 1, 1),
-      new THREE.MeshStandardMaterial({ color: 0xffffff }),
-    );
-    plane.castShadow = false;
-    plane.receiveShadow = true;
-    plane.rotation.x = -Math.PI / 2;
-    this.scene.add(plane);
-
     const hero = new THREE.Mesh(
       new THREE.BoxGeometry(2, 2, 2),
       new THREE.MeshPhongMaterial({
@@ -85,6 +78,10 @@ export class KillTheEvil {
     hero.receiveShadow = true;
     this.scene.add(hero);
     this.hero = hero;
+    // this.camera.lookAt(hero.position)
+
+    const foyer = new Foyer(20);
+    foyer.addToScene(this.scene, new THREE.Vector3(0, 0, 0))
 
     this.raf();
     this.initControls();
@@ -104,6 +101,7 @@ export class KillTheEvil {
       if (e.key === "ArrowRight") {
         this.hero.position.setZ(this.hero.position.z - 1);
       }
+      // this.camera.lookAt(this.hero.position)
     });
   }
 
