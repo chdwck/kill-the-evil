@@ -26,7 +26,6 @@ export class KillTheEvil {
   camera: THREE.PerspectiveCamera;
   scene: THREE.Scene;
   hero: THREE.Mesh;
-  enemy: THREE.Mesh;
 
   constructor() {
     const width = window.innerWidth;
@@ -67,19 +66,6 @@ export class KillTheEvil {
     hero.receiveShadow = true;
     this.scene.add(hero);
     this.hero = hero;
-    
-    const enemy = new THREE.Mesh(
-      new THREE.BoxGeometry(2, 2, 2),
-      new THREE.MeshPhongMaterial({
-        color: 0xbada55,
-      }),
-    );
-
-    enemy.position.set(3, 1, 0);
-    enemy.castShadow = true;
-    enemy.receiveShadow = true;
-    this.scene.add(enemy);
-    this.enemy = enemy;
     // this.camera.lookAt(hero.position)
 
     const foyer = new Foyer(20);
