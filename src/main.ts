@@ -61,6 +61,7 @@ class TreasureRoom1 {
   ];
 }
 
+const CELL_RATIO = 10; 
 const ROOM_SIZE = 10;
 const roomsRegistry = {
   square: new SquareRoom(),
@@ -205,8 +206,9 @@ export class KillTheEvil {
   }
 
   renderMap() {
+    const floorSize = LAYOUT_SIZE * CELL_RATIO;
     const floor = new THREE.Mesh(
-      new THREE.PlaneGeometry(LAYOUT_SIZE, LAYOUT_SIZE, 1, 1),
+      new THREE.PlaneGeometry(floorSize, floorSize, 1, 1),
       new THREE.MeshPhongMaterial({ color: 0xff00ff }),
     );
     floor.rotation.x = -Math.PI / 2;
@@ -215,16 +217,17 @@ export class KillTheEvil {
     const wallHeight = 10;
 
     // render horizontal planes
-    let walls : [number, number][][] = [];
+    let walls: [number, number][][] = [];
     const wallCount = LAYOUT_SIZE / ROOM_SIZE + 1;
     for (let i = 0; i < wallCount; i++) {
-      walls.push([])
+      walls.push([]);
       let wallStart = 0;
       let wallLen = 0;
       for (let j = 0; j < LAYOUT_SIZE; j++) {
-        const cellIdx = i === wallCount - 1
-          ? this.game.layout.cells.length - LAYOUT_SIZE + j
-          : (i * LAYOUT_SIZE * ROOM_SIZE) + j + 1 
+        const cellIdx =
+          i === wallCount - 1
+            ? this.game.layout.cells.length - LAYOUT_SIZE + j
+            : i * LAYOUT_SIZE * ROOM_SIZE + j + 1;
         if (this.game.layout.cells[cellIdx] !== W) {
           if (wallLen > 0) {
             walls[i].push([wallStart, wallLen]);
@@ -237,31 +240,35 @@ export class KillTheEvil {
       }
 
       if (wallLen > 0) {
-        walls[i].push([wallStart, wallLen])
+        walls[i].push([wallStart, wallLen]);
       }
     }
 
     for (let i = 0; i < walls.length; i++) {
       for (let j = 0; j < walls[i].length; j++) {
-        const [offsetLeft, width] = walls[i][j]
+        let [offsetLeft, width] = walls[i][j];
+        width *= CELL_RATIO
         const wall = new THREE.Mesh(
           new THREE.PlaneGeometry(width, wallHeight, 1, 1),
-          new THREE.MeshStandardMaterial({ color: 0xcc5500, side: THREE.DoubleSide })
+          new THREE.MeshStandardMaterial({
+            color: 0xcc5500,
+            side: THREE.DoubleSide,
+          }),
         );
         wall.position.y = wallHeight / 2
-        wall.position.z = LAYOUT_SIZE / -2 + (ROOM_SIZE * i);
-        wall.position.x = (LAYOUT_SIZE - width) / -2 + offsetLeft 
+        wall.position.z = floorSize / -2 + (ROOM_SIZE * CELL_RATIO * i);
+        wall.position.x = (floorSize - width) / -2 + offsetLeft * CELL_RATIO
         this.scene.add(wall);
       }
     }
 
     walls = [];
     for (let i = 0; i < wallCount; i++) {
-      walls.push([])
+      walls.push([]);
       let wallStart = 0;
       let wallLen = 0;
       for (let j = 0; j < LAYOUT_SIZE; j++) {
-        const cellIdx = i * ROOM_SIZE + (j * LAYOUT_SIZE)
+        const cellIdx = i * ROOM_SIZE + j * LAYOUT_SIZE;
         if (this.game.layout.cells[cellIdx] !== W) {
           if (wallLen > 0) {
             walls[i].push([wallStart, wallLen]);
@@ -274,21 +281,25 @@ export class KillTheEvil {
       }
 
       if (wallLen > 0) {
-        walls[i].push([wallStart, wallLen])
+        walls[i].push([wallStart, wallLen]);
       }
     }
 
     for (let i = 0; i < walls.length; i++) {
       for (let j = 0; j < walls[i].length; j++) {
-        const [offsetLeft, width] = walls[i][j]
+        let [offsetLeft, width] = walls[i][j];
+        width *= CELL_RATIO
         const wall = new THREE.Mesh(
           new THREE.PlaneGeometry(width, wallHeight, 1, 1),
-          new THREE.MeshStandardMaterial({ color: 0xcc5500, side: THREE.DoubleSide })
+          new THREE.MeshStandardMaterial({
+            color: 0xcc5500,
+            side: THREE.DoubleSide,
+          }),
         );
-        wall.position.y = wallHeight / 2
+        wall.position.y = wallHeight / 2;
         wall.rotation.y = -Math.PI / 2;
-        wall.position.x = LAYOUT_SIZE / -2 + (ROOM_SIZE * i);
-        wall.position.z = (LAYOUT_SIZE - width) / -2 + offsetLeft 
+        wall.position.x = floorSize / -2 + ROOM_SIZE * i * CELL_RATIO;
+        wall.position.z = (floorSize - width) / -2 + offsetLeft * CELL_RATIO;
         this.scene.add(wall);
       }
     }
