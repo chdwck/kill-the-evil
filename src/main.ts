@@ -11,6 +11,50 @@ type Keys = {
   shift: boolean;
 };
 
+class ThirdPersonCamera {
+  camera: THREE.PerspectiveCamera;
+  currentPosition: THREE.Vector3;
+  currentLookAt: THREE.Vector3;
+  target: BasicCharacterController;
+
+  constructor(
+    camera: THREE.PerspectiveCamera,
+    target: BasicCharacterController,
+  ) {
+    this.camera = camera;
+    this.target = target;
+
+    this.currentPosition = new THREE.Vector3();
+    this.currentLookAt = new THREE.Vector3();
+  }
+
+  calculateIdealOffset(): THREE.Vector3 {
+    const idealOffset = new THREE.Vector3(-1.5, 2.0, -3.0);
+    idealOffset.applyQuaternion(this.target.rotation);
+    idealOffset.add(this.target.position);
+    return idealOffset;
+  }
+
+  calculateIdealLookAt(): THREE.Vector3 {
+    const idealLookAt = new THREE.Vector3(0, 10, 50);
+    idealLookAt.applyQuaternion(this.target.rotation);
+    idealLookAt.add(this.target.position);
+    return idealLookAt;
+  }
+
+  update(timeElapsedS: number) {
+    const idealOffset = this.calculateIdealOffset();
+    const idealLookAt = this.calculateIdealLookAt();
+
+    const t = 1.25 - Math.pow(0.001, timeElapsedS);
+    this.currentPosition.lerp(idealOffset, t);
+    this.currentLookAt.lerp(idealLookAt, t);
+
+    this.camera.position.copy(this.currentPosition);
+    this.camera.lookAt(idealLookAt);
+  }
+}
+
 class BasicCharacterControllerProxy {
   animations: Record<string, Animation> = {};
 
@@ -31,7 +75,7 @@ class BasicCharacterController {
   target!: THREE.Group;
   manager!: THREE.LoadingManager;
   animations: Record<string, Animation> = {};
-
+  position: THREE.Vector3;
   scene: THREE.Scene;
   deceleration: THREE.Vector3;
   acceleration: THREE.Vector3;
@@ -42,17 +86,25 @@ class BasicCharacterController {
     this.deceleration = new THREE.Vector3(-0.0005, -0.0001, -5.0);
     this.acceleration = new THREE.Vector3(1, 0.25, 50.0);
     this.velocity = new THREE.Vector3(0, 0, 0);
-
+    this.position = new THREE.Vector3();
     this.input = new BasicCharacterControllerInput();
     this.fsm = new FSM(new BasicCharacterControllerProxy(this.animations));
     this.loadModels();
+  }
+
+  get rotation(): THREE.Quaternion {
+    if (!this.target) {
+      return new THREE.Quaternion();
+    }
+
+    return this.target.quaternion;
   }
 
   loadModels() {
     const loader = new FBXLoader();
     loader.setPath("./assets/zombie/");
     loader.load("zombie_character.fbx", (fbx) => {
-      fbx.scale.setScalar(0.1);
+      fbx.scale.setScalar(0.01);
       fbx.traverse((c) => {
         c.castShadow = true;
       });
@@ -148,9 +200,6 @@ class BasicCharacterController {
 
     controlObject.quaternion.copy(r);
 
-    const oldPosition = new THREE.Vector3();
-    oldPosition.copy(controlObject.position);
-
     const forward = new THREE.Vector3(0, 0, 1);
     forward.applyQuaternion(controlObject.quaternion);
     forward.normalize();
@@ -165,7 +214,7 @@ class BasicCharacterController {
     controlObject.position.add(forward);
     controlObject.position.add(sideways);
 
-    oldPosition.copy(controlObject.position);
+    this.position.copy(controlObject.position);
 
     if (this.mixer) {
       this.mixer.update(timeInSeconds);
@@ -634,6 +683,7 @@ export class KillTheEvil {
   hero: THREE.Mesh;
   enemies: THREE.Mesh[] = [];
   controls!: BasicCharacterController;
+  thirdPersonCamera!: ThirdPersonCamera;
   previousRaf: number | null = null;
 
   constructor() {
@@ -786,6 +836,7 @@ export class KillTheEvil {
 
   initControls() {
     this.controls = new BasicCharacterController(this.scene);
+    this.thirdPersonCamera = new ThirdPersonCamera(this.camera, this.controls);
   }
 
   step(timeElapsedMS: number) {
@@ -793,6 +844,8 @@ export class KillTheEvil {
     if (this.controls) {
       this.controls.update(timeElapsedS);
     }
+
+    this.thirdPersonCamera.update(timeElapsedS);
   }
 
   raf() {
