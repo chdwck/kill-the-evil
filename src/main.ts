@@ -13,7 +13,8 @@ class Hero {
   }
 }
 
-const LAYOUT_SIZE = 50;
+const WALL_HEIGHT = 10;
+const LAYOUT_SIZE = 100;
 
 export const W = "W";
 export const D = "D";
@@ -120,7 +121,7 @@ class Layout {
     console.log(
       "      " +
         Array.from({ length: LAYOUT_SIZE })
-          .map((c, i) => `x${i}`.padEnd(2))
+          .map((_, i) => `x${i}`.padEnd(2))
           .join(" "),
     );
     for (let i = 0; i < this.cells.length; i += LAYOUT_SIZE) {
@@ -172,8 +173,8 @@ export class KillTheEvil {
     const near = 1.0;
     const far = 1000.0;
     this.camera = new THREE.PerspectiveCamera(fov, aspect, near, far);
-    this.camera.position.set(0, 100, 0);
-    // this.camera.position.set(15, 8, 0);
+    // this.camera.position.set(0, 100, 0);
+    this.camera.position.set(15, WALL_HEIGHT, 0);
 
     this.scene = new THREE.Scene();
 
@@ -214,7 +215,6 @@ export class KillTheEvil {
     floor.rotation.x = -Math.PI / 2;
     this.scene.add(floor);
 
-    const wallHeight = 10;
 
     // render horizontal planes
     let walls: [number, number][][] = [];
@@ -249,13 +249,13 @@ export class KillTheEvil {
         let [offsetLeft, width] = walls[i][j];
         width *= CELL_RATIO
         const wall = new THREE.Mesh(
-          new THREE.PlaneGeometry(width, wallHeight, 1, 1),
+          new THREE.PlaneGeometry(width, WALL_HEIGHT, 1, 1),
           new THREE.MeshStandardMaterial({
             color: 0xcc5500,
             side: THREE.DoubleSide,
           }),
         );
-        wall.position.y = wallHeight / 2
+        wall.position.y = WALL_HEIGHT / 2
         wall.position.z = floorSize / -2 + (ROOM_SIZE * CELL_RATIO * i);
         wall.position.x = (floorSize - width) / -2 + offsetLeft * CELL_RATIO
         this.scene.add(wall);
@@ -290,13 +290,13 @@ export class KillTheEvil {
         let [offsetLeft, width] = walls[i][j];
         width *= CELL_RATIO
         const wall = new THREE.Mesh(
-          new THREE.PlaneGeometry(width, wallHeight, 1, 1),
+          new THREE.PlaneGeometry(width, WALL_HEIGHT, 1, 1),
           new THREE.MeshStandardMaterial({
             color: 0xcc5500,
             side: THREE.DoubleSide,
           }),
         );
-        wall.position.y = wallHeight / 2;
+        wall.position.y = WALL_HEIGHT / 2;
         wall.rotation.y = -Math.PI / 2;
         wall.position.x = floorSize / -2 + ROOM_SIZE * i * CELL_RATIO;
         wall.position.z = (floorSize - width) / -2 + offsetLeft * CELL_RATIO;
@@ -319,7 +319,9 @@ export class KillTheEvil {
       if (e.key === "ArrowRight") {
         this.hero.position.setZ(this.hero.position.z - 1);
       }
-      // this.camera.lookAt(this.hero.position)
+      this.camera.lookAt(this.hero.position)
+
+      console.log(this.camera)
     });
   }
 
