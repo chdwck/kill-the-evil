@@ -29,7 +29,7 @@ class ThirdPersonCamera {
   }
 
   calculateIdealOffset(): THREE.Vector3 {
-    const idealOffset = new THREE.Vector3(-1.5, 2.0, -3.0);
+    const idealOffset = new THREE.Vector3(-1.5, 1.5, -3.0);
     idealOffset.applyQuaternion(this.target.rotation);
     idealOffset.add(this.target.position);
     return idealOffset;
@@ -102,11 +102,11 @@ class BasicCharacterController {
 
   loadModels() {
     const loader = new FBXLoader();
-    loader.setPath("./assets/zombie/");
-    loader.load("zombie_character.fbx", (fbx) => {
+    loader.setPath("./assets/content/Characters/");
+    loader.load("DungeonCrawler_Character.fbx", (fbx) => {
       fbx.scale.setScalar(0.01);
       fbx.traverse((c) => {
-        c.castShadow = true;
+        // c.castShadow = true;
       });
 
       this.target = fbx;
@@ -129,7 +129,7 @@ class BasicCharacterController {
       };
 
       const animationLoader = new FBXLoader(this.manager);
-      animationLoader.setPath("./assets/zombie/");
+      animationLoader.setPath("./assets/content/Characters/");
       animationLoader.load("idle.fbx", (anim) => onLoad("idle", anim));
       animationLoader.load("run.fbx", (anim) => onLoad("run", anim));
       animationLoader.load("walk.fbx", (anim) => onLoad("walk", anim));
@@ -541,7 +541,7 @@ class Hero {
 }
 
 const WALL_HEIGHT = 10;
-const LAYOUT_SIZE = 100;
+const LAYOUT_SIZE = 150;
 const CELL_RATIO = 10;
 const FLOOR_SIZE = LAYOUT_SIZE * CELL_RATIO;
 
@@ -720,7 +720,7 @@ export class KillTheEvil {
       }),
     );
 
-    const light = new THREE.HemisphereLight(0xffffff, 0x123456, 1.0);
+    const light = new THREE.HemisphereLight(0xffffff, 0xffffff, 1.0);
     this.scene.add(light);
 
     hero.position.set(FLOOR_SIZE / -2, 0.5, FLOOR_SIZE / -2);
