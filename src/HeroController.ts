@@ -17,7 +17,7 @@ class HeroControllerProxy {
 }
 
 export default class HeroController {
-  fsm: FSM;
+  fsm: HeroFSM;
   input: HeroInput;
   mixer!: THREE.AnimationMixer;
   target!: THREE.Group;
@@ -36,7 +36,7 @@ export default class HeroController {
     this.velocity = new THREE.Vector3(0, 0, 0);
     this.position = new THREE.Vector3();
     this.input = new HeroInput();
-    this.fsm = new FSM(new HeroControllerProxy(this.animations));
+    this.fsm = new HeroFSM(new HeroControllerProxy(this.animations));
     this.loadModels();
   }
 
@@ -172,16 +172,16 @@ export default class HeroController {
 
 
 interface State {
-  parent: FSM;
+  parent: HeroFSM;
   name: string;
   update(timeElapsed: number, input: any): void;
   enter(state: State | null): void;
   exit(): void;
 }
 
-type StateFactory = (parent: FSM) => State;
+type StateFactory = (parent: HeroFSM) => State;
 
-class FSM {
+class HeroFSM {
   states: Record<string, StateFactory>;
   currentState: State | null;
 
@@ -226,9 +226,9 @@ class FSM {
 }
 
 class DanceState implements State {
-  parent: FSM;
+  parent: HeroFSM;
 
-  constructor(parent: FSM) {
+  constructor(parent: HeroFSM) {
     this.parent = parent;
 
     this.finished = this.finished.bind(this);
@@ -273,8 +273,8 @@ class DanceState implements State {
 }
 
 class IdleState implements State {
-  parent: FSM;
-  constructor(parent: FSM) {
+  parent: HeroFSM;
+  constructor(parent: HeroFSM) {
     this.parent = parent;
   }
 
@@ -310,8 +310,8 @@ class IdleState implements State {
 }
 
 class WalkState implements State {
-  parent: FSM;
-  constructor(parent: FSM) {
+  parent: HeroFSM;
+  constructor(parent: HeroFSM) {
     this.parent = parent;
   }
 
@@ -358,8 +358,8 @@ class WalkState implements State {
 }
 
 class RunState implements State {
-  parent: FSM;
-  constructor(parent: FSM) {
+  parent: HeroFSM;
+  constructor(parent: HeroFSM) {
     this.parent = parent;
   }
 
