@@ -1,7 +1,8 @@
 import * as THREE from "three";
 import { FBXLoader } from "three/examples/jsm/loaders/FBXLoader";
 
-import HeroInput from './HeroInput';
+import FSM, { type State } from "./FSM";
+import HeroInput from "./HeroInput";
 
 type Animation = {
   clip: THREE.AnimationClip;
@@ -170,62 +171,20 @@ export default class HeroController {
   }
 }
 
-
-interface State {
-  parent: HeroFSM;
-  name: string;
-  update(timeElapsed: number, input: any): void;
-  enter(state: State | null): void;
-  exit(): void;
-}
-
-type StateFactory = (parent: HeroFSM) => State;
-
-class HeroFSM {
-  states: Record<string, StateFactory>;
-  currentState: State | null;
-
-  proxy: HeroControllerProxy;
-
+type HeroState = State<HeroControllerProxy, HeroInput>;
+class HeroFSM extends FSM<HeroControllerProxy, HeroInput> {
   constructor(proxy: HeroControllerProxy) {
-    this.states = {};
-    this.currentState = null;
-
-    this.proxy = proxy;
-    this.addState("idle", (parent) => new IdleState(parent));
-    this.addState("run", (parent) => new RunState(parent));
-    this.addState("walk", (parent) => new WalkState(parent));
-    this.addState("dance", (parent) => new DanceState(parent));
-  }
-
-  addState(name: string, stateFactory: StateFactory) {
-    this.states[name] = stateFactory;
-  }
-
-  setState(name: string) {
-    const prevState = this.currentState;
-
-    if (prevState) {
-      if (prevState.name === name) {
-        return;
-      }
-
-      prevState.exit();
-    }
-
-    const state = this.states[name](this);
-    this.currentState = state;
-    state.enter(prevState);
-  }
-
-  update(timeElapsed: number, input: HeroInput) {
-    if (this.currentState) {
-      this.currentState.update(timeElapsed, input);
-    }
+    super(proxy);
+    this.states = {
+      idle: new IdleState(this),
+      run: new RunState(this),
+      walk: new WalkState(this),
+      dance: new DanceState(this),
+    };
   }
 }
 
-class DanceState implements State {
+class DanceState implements HeroState {
   parent: HeroFSM;
 
   constructor(parent: HeroFSM) {
@@ -238,7 +197,7 @@ class DanceState implements State {
     return "dance";
   }
 
-  enter(prevState: State | null) {
+  enter(prevState: HeroState | null) {
     const currentAction = this.parent.proxy.animations["dance"].action;
     const mixer = currentAction.getMixer();
     mixer.addEventListener("finished", this.finished);
@@ -251,7 +210,7 @@ class DanceState implements State {
     const prevAction = this.parent.proxy.animations[prevState.name].action;
 
     currentAction.reset();
-    currentAction.setLoop(THREE.LoopOnce, 1);
+    currentAction.setLoop(THREE.LoopRepeat, 3);
     currentAction.clampWhenFinished = true;
     currentAction.crossFadeFrom(prevAction, 0.2, true);
     currentAction.play();
@@ -272,7 +231,7 @@ class DanceState implements State {
   update(_timeElapsed: number, _input: HeroInput) {}
 }
 
-class IdleState implements State {
+class IdleState implements HeroState {
   parent: HeroFSM;
   constructor(parent: HeroFSM) {
     this.parent = parent;
@@ -282,7 +241,7 @@ class IdleState implements State {
     return "idle";
   }
 
-  enter(prevState: State | null) {
+  enter(prevState: HeroState | null) {
     const idleAction = this.parent.proxy.animations["idle"].action;
     if (!prevState) {
       idleAction.play();
@@ -309,7 +268,7 @@ class IdleState implements State {
   }
 }
 
-class WalkState implements State {
+class WalkState implements HeroState {
   parent: HeroFSM;
   constructor(parent: HeroFSM) {
     this.parent = parent;
@@ -319,7 +278,7 @@ class WalkState implements State {
     return "walk";
   }
 
-  enter(prevState: State) {
+  enter(prevState: HeroState) {
     const curAction = this.parent.proxy.animations["walk"].action;
     if (prevState) {
       const prevAction = this.parent.proxy.animations[prevState.name].action;
@@ -357,7 +316,7 @@ class WalkState implements State {
   }
 }
 
-class RunState implements State {
+class RunState implements HeroState {
   parent: HeroFSM;
   constructor(parent: HeroFSM) {
     this.parent = parent;
@@ -367,7 +326,7 @@ class RunState implements State {
     return "run";
   }
 
-  enter(prevState: State) {
+  enter(prevState: HeroState) {
     const currentAction = this.parent.proxy.animations["run"].action;
     if (!prevState) {
       currentAction.play();

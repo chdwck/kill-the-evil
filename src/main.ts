@@ -1,50 +1,6 @@
 import * as THREE from "three";
 
-import HeroController from './HeroController'
-
-class ThirdPersonCamera {
-  camera: THREE.PerspectiveCamera;
-  currentPosition: THREE.Vector3;
-  currentLookAt: THREE.Vector3;
-  target: HeroController;
-
-  constructor(
-    camera: THREE.PerspectiveCamera,
-    target: HeroController,
-  ) {
-    this.camera = camera;
-    this.target = target;
-
-    this.currentPosition = new THREE.Vector3();
-    this.currentLookAt = new THREE.Vector3();
-  }
-
-  calculateIdealOffset(): THREE.Vector3 {
-    const idealOffset = new THREE.Vector3(-1.5, 1.5, -3.0);
-    idealOffset.applyQuaternion(this.target.rotation);
-    idealOffset.add(this.target.position);
-    return idealOffset;
-  }
-
-  calculateIdealLookAt(): THREE.Vector3 {
-    const idealLookAt = new THREE.Vector3(0, 10, 50);
-    idealLookAt.applyQuaternion(this.target.rotation);
-    idealLookAt.add(this.target.position);
-    return idealLookAt;
-  }
-
-  update(timeElapsedS: number) {
-    const idealOffset = this.calculateIdealOffset();
-    const idealLookAt = this.calculateIdealLookAt();
-
-    const t = 1.25 - Math.pow(0.001, timeElapsedS);
-    this.currentPosition.lerp(idealOffset, t);
-    this.currentLookAt.lerp(idealLookAt, t);
-
-    this.camera.position.copy(this.currentPosition);
-    this.camera.lookAt(idealLookAt);
-  }
-}
+import GameController from "./GameController";
 
 const WALL_HEIGHT = 10;
 const LAYOUT_SIZE = 100;
@@ -178,15 +134,14 @@ class Game {
   }
 }
 
+
 const ASPECT_RATIO = 1920 / 1080;
 export class KillTheEvil {
   game: Game;
+  gameController: GameController;
   renderer: THREE.WebGLRenderer;
   camera: THREE.PerspectiveCamera;
   scene: THREE.Scene;
-  enemies: THREE.Mesh[] = [];
-  controls!: HeroController;
-  thirdPersonCamera!: ThirdPersonCamera;
   previousRaf: number | null = null;
 
   constructor() {
@@ -215,9 +170,10 @@ export class KillTheEvil {
 
     this.game = new Game();
 
+    this.gameController = new GameController(this.scene, this.camera)
+
     this.renderMap();
 
-    this.initControls();
     this.raf();
   }
 
@@ -318,20 +274,6 @@ export class KillTheEvil {
     }
   }
 
-  initControls() {
-    this.controls = new HeroController(this.scene);
-    this.thirdPersonCamera = new ThirdPersonCamera(this.camera, this.controls);
-  }
-
-  step(timeElapsedMS: number) {
-    const timeElapsedS = timeElapsedMS / 1000;
-    if (this.controls) {
-      this.controls.update(timeElapsedS);
-    }
-
-    this.thirdPersonCamera.update(timeElapsedS);
-  }
-
   raf() {
     requestAnimationFrame((t: number) => {
       if (this.previousRaf === null) {
@@ -339,7 +281,7 @@ export class KillTheEvil {
       }
       this.raf();
       this.renderer.render(this.scene, this.camera);
-      this.step(t - this.previousRaf);
+      this.gameController.update((t - this.previousRaf) / 1000);
       this.previousRaf = t;
     });
   }
