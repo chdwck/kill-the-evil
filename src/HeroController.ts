@@ -2,7 +2,8 @@ import * as THREE from "three";
 import { FBXLoader } from "three/examples/jsm/loaders/FBXLoader";
 
 import FSM, { type State } from "./FSM";
-import HeroInput from "./HeroInput";
+import { GameControllerProxy } from "./GameController";
+import GameInput from "./GameInput";
 
 type Animation = {
   clip: THREE.AnimationClip;
@@ -18,25 +19,23 @@ class HeroControllerProxy {
 }
 
 export default class HeroController {
+  proxy: GameControllerProxy;
   fsm: HeroFSM;
-  input: HeroInput;
   mixer!: THREE.AnimationMixer;
   target!: THREE.Group;
   manager!: THREE.LoadingManager;
   animations: Record<string, Animation> = {};
   position: THREE.Vector3;
-  scene: THREE.Scene;
   deceleration: THREE.Vector3;
   acceleration: THREE.Vector3;
   velocity: THREE.Vector3;
 
-  constructor(scene: THREE.Scene) {
-    this.scene = scene;
+  constructor(proxy: GameControllerProxy) {
+    this.proxy = proxy;
     this.deceleration = new THREE.Vector3(-0.0005, -0.0001, -5.0);
-    this.acceleration = new THREE.Vector3(1, 0.25, 50.0);
+    this.acceleration = new THREE.Vector3(1, 0.25, 25.0);
     this.velocity = new THREE.Vector3(0, 0, 0);
     this.position = new THREE.Vector3();
-    this.input = new HeroInput();
     this.fsm = new HeroFSM(new HeroControllerProxy(this.animations));
     this.loadModels();
   }
@@ -50,16 +49,8 @@ export default class HeroController {
   }
 
   loadModels() {
-    const loader = new FBXLoader();
-    loader.setPath("./assets/content/Characters/");
-    loader.load("DungeonCrawler_Character.fbx", (fbx) => {
-      fbx.scale.setScalar(0.01);
-      fbx.traverse((c) => {
-        // c.castShadow = true;
-      });
-
-      this.target = fbx;
-      this.scene.add(this.target);
+    this.proxy.assetManager.loadHero(heroFbx => {
+      this.target = heroFbx;
       this.mixer = new THREE.AnimationMixer(this.target);
 
       this.manager = new THREE.LoadingManager();
@@ -91,7 +82,7 @@ export default class HeroController {
       return;
     }
 
-    this.fsm.update(timeInSeconds, this.input);
+    this.fsm.update(timeInSeconds, this.proxy.input);
 
     const velocity = this.velocity;
     const frameDeleceration = new THREE.Vector3(
@@ -113,7 +104,7 @@ export default class HeroController {
     const r = controlObject.quaternion.clone();
 
     const acc = this.acceleration.clone();
-    if (this.input.keys.shift) {
+    if (this.proxy.input.keys.shift) {
       acc.multiplyScalar(2.0); // speed up to run
     }
 
@@ -121,15 +112,15 @@ export default class HeroController {
       acc.multiplyScalar(0.0); // kill acceleration and dance!
     }
 
-    if (this.input.keys.forward) {
+    if (this.proxy.input.keys.forward) {
       velocity.z += acc.z * timeInSeconds;
     }
 
-    if (this.input.keys.backward) {
+    if (this.proxy.input.keys.backward) {
       velocity.z -= acc.z * timeInSeconds;
     }
 
-    if (this.input.keys.left) {
+    if (this.proxy.input.keys.left) {
       a.set(0, 1, 0);
       quat.setFromAxisAngle(
         a,
@@ -138,7 +129,7 @@ export default class HeroController {
       r.multiply(quat);
     }
 
-    if (this.input.keys.right) {
+    if (this.proxy.input.keys.right) {
       a.set(0, 1, 0);
       quat.setFromAxisAngle(
         a,
@@ -171,8 +162,8 @@ export default class HeroController {
   }
 }
 
-type HeroState = State<HeroControllerProxy, HeroInput>;
-class HeroFSM extends FSM<HeroControllerProxy, HeroInput> {
+type HeroState = State<HeroControllerProxy, GameInput>;
+class HeroFSM extends FSM<HeroControllerProxy, GameInput> {
   constructor(proxy: HeroControllerProxy) {
     super(proxy);
     this.states = {
@@ -228,7 +219,7 @@ class DanceState implements HeroState {
 
   exit() {}
 
-  update(_timeElapsed: number, _input: HeroInput) {}
+  update(_timeElapsed: number, _input: GameInput) {}
 }
 
 class IdleState implements HeroState {
@@ -259,7 +250,7 @@ class IdleState implements HeroState {
 
   exit() {}
 
-  update(_timeElapsed: number, input: HeroInput) {
+  update(_timeElapsed: number, input: GameInput) {
     if (input.keys.forward || input.keys.backward) {
       this.parent.setState("walk");
     } else if (input.keys.space) {
@@ -304,7 +295,7 @@ class WalkState implements HeroState {
 
   exit() {}
 
-  update(_timeElpased: number, input: HeroInput) {
+  update(_timeElpased: number, input: GameInput) {
     if (input.keys.forward || input.keys.backward) {
       if (input.keys.shift) {
         this.parent.setState("run");
@@ -352,7 +343,7 @@ class RunState implements HeroState {
 
   exit() {}
 
-  update(_timeElpased: number, input: HeroInput) {
+  update(_timeElpased: number, input: GameInput) {
     if (input.keys.forward || input.keys.backward) {
       if (!input.keys.shift) {
         this.parent.setState("walk");

@@ -1,14 +1,18 @@
-
 type Keys = {
   forward: boolean;
   backward: boolean;
   left: boolean;
   right: boolean;
+  panLeft: boolean;
+  panRight: boolean;
+  zoomIn: boolean;
+  zoomOut: boolean;
   space: boolean;
   shift: boolean;
+  battleView: boolean;
 };
 
-export default class HeroInput {
+export default class GameInput {
   keys: Keys;
   constructor() {
     this.keys = {
@@ -16,8 +20,13 @@ export default class HeroInput {
       backward: false,
       left: false,
       right: false,
+      panLeft: false,
+      panRight: false,
+      zoomIn: false,
+      zoomOut: false,
       space: false,
       shift: false,
+      battleView: false
     };
     window.addEventListener("keydown", (e) => this.onKeyDown(e), false);
     window.addEventListener("keyup", (e) => this.onKeyUp(e), false);
@@ -25,6 +34,12 @@ export default class HeroInput {
 
   onKeyDown(e: KeyboardEvent) {
     switch (e.key.toLowerCase()) {
+      case 'q':
+        this.keys.battleView = false;
+        break;
+      case 'b':
+        this.keys.battleView = true;
+        break;
       case "w":
         this.keys.forward = true;
         break;
@@ -44,9 +59,16 @@ export default class HeroInput {
         this.keys.space = true;
         break;
       case "ArrowUp":
+        this.keys.zoomIn = true;
+        break;
       case "ArrowLeft":
+        this.keys.panLeft = true;
+        break;
       case "ArrowDown":
+        this.keys.zoomOut = true;
+        break;
       case "ArrowRight":
+        this.keys.panRight = true;
         break;
     }
   }
@@ -72,9 +94,16 @@ export default class HeroInput {
         this.keys.space = false;
         break;
       case "ArrowUp":
+        this.keys.zoomIn = false;
+        break;
       case "ArrowLeft":
+        this.keys.panLeft = false;
+        break;
       case "ArrowDown":
+        this.keys.zoomOut = false;
+        break;
       case "ArrowRight":
+        this.keys.panRight = false;
         break;
     }
   }
