@@ -5,6 +5,7 @@ export default class BattleController {
   room: Room;
   battleField: LayoutCell[] = [];
   assetManager: AssetManager;
+  
 
   constructor(room: Room, assetManager: AssetManager) {
     this.room = room;
@@ -19,7 +20,7 @@ export default class BattleController {
       this.battleField[heroBattleFieldIdx] = H;
       this.room.setupBattleField();
       const adjustedHeroPosition = this.room.layoutPositionToPosition(x, y);
-      hero.position.set(adjustedHeroPosition.x, 0, adjustedHeroPosition.y);
+      hero.position.set(adjustedHeroPosition.x, adjustedHeroPosition.y, adjustedHeroPosition.z);
     };
     const hero = this.assetManager.getHero();
     if (hero) {

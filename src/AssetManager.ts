@@ -53,7 +53,7 @@ export default class AssetManager {
   loadSkeleton(onLoad: (name: string, skeleton: THREE.Group) => void) {
     this.loader.setPath("./assets/content/Characters/");
     this.loader.load("skeleton.fbx", (fbx) => {
-      fbx.scale.setScalar(0.5);
+      fbx.scale.setScalar(0.3);
       fbx.traverse((c) => {
         c.castShadow = true;
       });

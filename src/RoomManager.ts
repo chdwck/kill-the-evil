@@ -40,25 +40,29 @@ export abstract class Room {
       (position.x + this.worldWidth / 2) / this.cellMultiplier,
     );
     const layoutY = Math.floor(
-      (position.y + this.worldHeight / 2) / this.cellMultiplier,
+      (position.z + this.worldHeight / 2) / this.cellMultiplier,
     );
+
     const layoutIdx = layoutY * this.width + layoutX;
+    if (layoutY < 0 || layoutX < 0 || layoutY >= this.height || layoutX >= this.width) {
+      return [0, 0, 0]
+    }
     return [layoutX, layoutY, layoutIdx];
   }
 
   layoutPositionToPosition(x: number, y: number): THREE.Vector3 {
     return new THREE.Vector3(
       (this.worldWidth - this.cellMultiplier) / -2 + x * this.cellMultiplier,
-      (this.worldHeight - this.cellMultiplier) / 2 - y * this.cellMultiplier,
-      0.1,
+      0,
+      (this.cellMultiplier - this.worldHeight) / 2 + y * this.cellMultiplier,
     );
   }
 
-  forCells(callback: (x: number, y: number) => void) {
+  forCells(callback: (x: number, y: number, i: number) => void) {
     for (let i = 0; i < this.layout.length; i++) {
       const x = i % this.width;
       const y = Math.floor(i / this.width);
-      callback(x, y);
+      callback(x, y, i);
     }
   }
 
@@ -80,7 +84,7 @@ export abstract class Room {
       const edge = new THREE.EdgesGeometry(box);
       const cell = new THREE.LineSegments(edge, lineMaterial);
       const pos = this.layoutPositionToPosition(x, y);
-      cell.position.set(pos.x, pos.y, pos.z);
+      cell.position.set(pos.x, pos.z, 0.1); // invert y and z because is relative to rotated floor
       const name = this.battleFieldCellName(x, y);
       this.battleFieldObjectNames.push(name);
       cell.name = name;
@@ -222,7 +226,7 @@ class EntryRoom extends Room {
     W,_,_,_,_,_,_,_,_,W,
     W,_,_,_,_,_,_,_,_,W,
     W,_,_,_,_,_,_,_,_,W,
-    W,_,_,E,_,_,E,_,_,W,
+    W,_,_,E,_,E,E,_,_,W,
     W,W,W,W,_,_,W,W,W,W,
   ];
 
@@ -231,23 +235,23 @@ class EntryRoom extends Room {
   }
 
   renderEnemies(scene: THREE.Scene, assetManager: AssetManager) {
-    for (let i = 0; i < this.layout.length; i++) {
+    this.forCells((x, y, i) => {
       if (this.layout[i] === E) {
-        const xOffset = i % this.width;
-        const yOffset = Math.floor(i / this.width);
         assetManager.loadSkeleton((name, fbx) => {
           scene.add(fbx);
           fbx.position.copy(this.position);
-          fbx.position.add(
-            new THREE.Vector3(
-              (xOffset + 0.5 - this.width / 2) * this.cellMultiplier,
-              0,
-              (yOffset + 0.5 - this.height / 2) * this.cellMultiplier,
-            ),
-          );
+          const next = this.layoutPositionToPosition(x, y)
+          fbx.position.add(new THREE.Vector3(next.x, next.y, next.z))
+          // fbx.position.add(
+          //   new THREE.Vector3(
+          //     (xOffset + 0.5 - this.width / 2) * this.cellMultiplier,
+          //     0,
+          //     (yOffset + 0.5 - this.height / 2) * this.cellMultiplier,
+          //   ),
+          // );
         });
       }
-    }
+    })
   }
 
   render(scene: THREE.Scene, assetManager: AssetManager) {

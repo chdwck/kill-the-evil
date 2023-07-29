@@ -18,7 +18,7 @@ export default class TacticsCamera {
 
   calculateIdealOffset(): THREE.Vector3 {
     const idealOffset = new THREE.Vector3(
-      this.target.room.worldWidth / -2,
+      this.target.room.worldWidth / -1.5,
       WALL_HEIGHT,
       -3.0,
     );
