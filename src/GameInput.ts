@@ -58,16 +58,16 @@ export default class GameInput {
       case " ":
         this.keys.space = true;
         break;
-      case "ArrowUp":
+      case "arrowup":
         this.keys.zoomIn = true;
         break;
-      case "ArrowLeft":
+      case "arrowleft":
         this.keys.panLeft = true;
         break;
-      case "ArrowDown":
+      case "arrowdown":
         this.keys.zoomOut = true;
         break;
-      case "ArrowRight":
+      case "arrowright":
         this.keys.panRight = true;
         break;
     }
@@ -93,16 +93,16 @@ export default class GameInput {
       case " ":
         this.keys.space = false;
         break;
-      case "ArrowUp":
+      case "arrowup":
         this.keys.zoomIn = false;
         break;
-      case "ArrowLeft":
+      case "arrowleft":
         this.keys.panLeft = false;
         break;
-      case "ArrowDown":
+      case "arrowdown":
         this.keys.zoomOut = false;
         break;
-      case "ArrowRight":
+      case "arrowright":
         this.keys.panRight = false;
         break;
     }

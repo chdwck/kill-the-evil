@@ -141,7 +141,7 @@ class BattleState implements GameState {
       this.parent.setState(ExploreState.staticName);
       return;
     }
-    this.tacticsCamera.update(timeElapsedS);
+    this.tacticsCamera.update(timeElapsedS, input);
   }
 
   enter(prevState: GameState | null) {
