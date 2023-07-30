@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import BattleController from "./BattleController";
-import { WALL_HEIGHT } from "./RoomManager";
+import { Room, WALL_HEIGHT } from "./RoomManager";
 import GameInput from "./GameInput";
 
 class Degree {
@@ -18,6 +18,9 @@ class Degree {
   }
 
   setValue(value: number) {
+    if (value < 0) {
+      value = 359
+    }
     this.value = value % 360;
   }
 
@@ -52,30 +55,30 @@ export default class TacticsCamera {
   currentPosition: THREE.Vector3;
   currentLookAt: THREE.Vector3;
   camera: THREE.PerspectiveCamera;
-  target: BattleController;
+  room: Room;
   zoom: Zoom;
   offset: THREE.Vector3;
   deg: Degree;
 
-  constructor(camera: THREE.PerspectiveCamera, target: BattleController) {
+  constructor(camera: THREE.PerspectiveCamera, room: Room) {
     this.camera = camera;
-    this.target = target;
+    this.room = room;
 
     this.currentPosition = this.camera.position;
     this.currentLookAt = new THREE.Vector3();
-    this.zoom = new Zoom(0.25, 5, Math.max(this.target.room.worldWidth, this.target.room.worldHeight) * 1.5);
+    this.zoom = new Zoom(0.25, 5, Math.max(this.room.worldWidth, this.room.worldHeight) * 1.5);
     this.offset = new THREE.Vector3(
-      this.target.room.worldWidth / -1.5,
+      this.room.worldWidth / -1.5,
       WALL_HEIGHT,
       0,
     );
-    this.offset.add(this.target.room.position);
-    this.deg = new Degree(270);
+    this.offset.add(this.room.position);
+    this.deg = new Degree(0);
   }
 
   calculateIdealLookAt(): THREE.Vector3 {
     const idealLookAt = new THREE.Vector3(0, WALL_HEIGHT, 0);
-    idealLookAt.add(this.target.room.position);
+    idealLookAt.add(this.room.position);
     return idealLookAt;
   }
 
@@ -97,9 +100,10 @@ export default class TacticsCamera {
     }
 
     this.offset.x =
-      Math.sin(this.deg.radians) * this.zoom.value + this.target.room.position.x;
+      Math.sin(this.deg.radians) * this.zoom.value + this.room.position.x;
+
     this.offset.z =
-      Math.cos(this.deg.radians) * -this.zoom.value - this.target.room.position.z;
+      Math.cos(this.deg.radians) * -this.zoom.value - this.room.position.z;
 
     const idealLookAt = this.calculateIdealLookAt();
 

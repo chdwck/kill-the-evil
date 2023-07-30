@@ -124,11 +124,11 @@ class BattleState implements GameState {
     this.parent = fsm;
     this.battleController = new BattleController(
       this.parent.proxy.roomManager.currentRoom,
-      this.parent.proxy.roomManager.assetManager,
+      this.parent.proxy.roomManager.assetManager
     );
     this.tacticsCamera = new TacticsCamera(
       this.parent.proxy.camera,
-      this.battleController,
+      this.parent.proxy.roomManager.currentRoom,
     );
   }
 
@@ -141,7 +141,9 @@ class BattleState implements GameState {
       this.parent.setState(ExploreState.staticName);
       return;
     }
+
     this.tacticsCamera.update(timeElapsedS, input);
+    this.battleController.update(timeElapsedS, input, this.tacticsCamera);
   }
 
   enter(prevState: GameState | null) {

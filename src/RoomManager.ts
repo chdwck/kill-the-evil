@@ -33,9 +33,7 @@ export abstract class Room {
     this.position = position;
   }
 
-  positionToLayoutPosition(
-    position: THREE.Vector3,
-  ): [number, number, number] {
+  positionToLayoutPosition(position: THREE.Vector3): [number, number, number] {
     const layoutX = Math.floor(
       (position.x + this.worldWidth / 2) / this.cellMultiplier,
     );
@@ -44,8 +42,13 @@ export abstract class Room {
     );
 
     const layoutIdx = layoutY * this.width + layoutX;
-    if (layoutY < 0 || layoutX < 0 || layoutY >= this.height || layoutX >= this.width) {
-      return [0, 0, 0]
+    if (
+      layoutY < 0 ||
+      layoutX < 0 ||
+      layoutY >= this.height ||
+      layoutX >= this.width
+    ) {
+      return [0, 0, 0];
     }
     return [layoutX, layoutY, layoutIdx];
   }
@@ -72,24 +75,46 @@ export abstract class Room {
 
   setupBattleField() {
     if (this.floor === null) {
-      throw new Error("renderWall must be called after renderFloorAndWalls");
+      throw new Error(
+        "setupBattleField must be called after renderFloorAndWalls",
+      );
     }
-    const lineMaterial = new THREE.LineBasicMaterial({ color: 0x1fff0f });
+    const lineMaterial = new THREE.LineBasicMaterial({
+      color: 0x1fff0f,
+    });
     this.forCells((x, y) => {
       const box = new THREE.BoxGeometry(
         this.cellMultiplier,
         this.cellMultiplier,
         0.1,
       );
+
+      const boxMaterial = new THREE.MeshBasicMaterial({
+        color: 0x1fff0f,
+        transparent: true,
+        opacity: 0,
+      });
+
       const edge = new THREE.EdgesGeometry(box);
+      const boxMesh = new THREE.Mesh(box, boxMaterial);
       const cell = new THREE.LineSegments(edge, lineMaterial);
       const pos = this.layoutPositionToPosition(x, y);
-      cell.position.set(pos.x, pos.z, 0.1); // invert y and z because is relative to rotated floor
+      cell.position.set(pos.x, -pos.z, 0.1); // invert y and z because is relative to rotated floor
       const name = this.battleFieldCellName(x, y);
       this.battleFieldObjectNames.push(name);
       cell.name = name;
+      cell.add(boxMesh);
       this.floor!.add(cell);
     });
+  }
+
+  toggleCellHighlight(x: number, y: number, enable: boolean) {
+    let cell = this.floor?.getObjectByName(this.battleFieldCellName(x, y));
+    if (cell) {
+      (
+        (cell.children[0] as THREE.Mesh).material as THREE.MeshBasicMaterial
+      ).opacity = enable ? 1 : 0;
+    }
   }
 
   teardownBattleField() {
@@ -240,8 +265,8 @@ class EntryRoom extends Room {
         assetManager.loadSkeleton((name, fbx) => {
           scene.add(fbx);
           fbx.position.copy(this.position);
-          const next = this.layoutPositionToPosition(x, y)
-          fbx.position.add(new THREE.Vector3(next.x, next.y, next.z))
+          const next = this.layoutPositionToPosition(x, y);
+          fbx.position.add(new THREE.Vector3(next.x, next.y, next.z));
           // fbx.position.add(
           //   new THREE.Vector3(
           //     (xOffset + 0.5 - this.width / 2) * this.cellMultiplier,
@@ -251,7 +276,7 @@ class EntryRoom extends Room {
           // );
         });
       }
-    })
+    });
   }
 
   render(scene: THREE.Scene, assetManager: AssetManager) {
