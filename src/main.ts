@@ -33,9 +33,11 @@ export class KillTheEvil {
     const light = new THREE.HemisphereLight(0xffffff, 0xffffff, 1.0);
     this.scene.add(light);
 
-    this.gameController = new GameController(this.scene, this.camera)
+    this.gameController = new GameController(this.scene, this.camera);
 
-    this.raf();
+    this.gameController.init().then(() => {
+      this.raf();
+    });
   }
 
   raf() {

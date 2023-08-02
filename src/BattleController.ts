@@ -1,13 +1,13 @@
 import * as THREE from "three";
 import GameInput from "./GameInput";
-import AssetManager from "./AssetManager";
-import { type LayoutCell, Room, H } from "./RoomManager";
+import { Room, _ } from "./RoomManager";
 import TacticsCamera from "./TacticsCamera";
+import GameObjectStore from "./GameObjectStore";
 
 type DebouncerDatum = {
   ts: number;
   hits: number;
-}
+};
 class Debouncer {
   data: Record<string, DebouncerDatum>;
   releaseAfterMs: number;
@@ -25,7 +25,7 @@ class Debouncer {
       return true;
     }
     const diff = now - datum.ts;
-    if (diff >= this.releaseAfterMs / datum.hits * 15) {
+    if (diff >= (this.releaseAfterMs / datum.hits) * 15) {
       this.data[key].ts = now;
       this.data[key].hits = 1;
       return true;
@@ -39,46 +39,102 @@ class Debouncer {
 
 export default class BattleController {
   room: Room;
-  battleField: LayoutCell[] = [];
-  assetManager: AssetManager;
+  objectStore: GameObjectStore;
   selectedCell: [number, number];
   inputDebouncer: Debouncer;
-  deceleration: THREE.Vector2;
-  acceleration: THREE.Vector2;
-  velocity: THREE.Vector2;
 
-  constructor(room: Room, assetManager: AssetManager) {
+  battleField: string[] = [];
+  turnOrder: string[] = [];
+  turnIdx: number = 0;
+  acceptPlayerInput: boolean = false;
+
+  constructor(room: Room, objectStore: GameObjectStore) {
     this.room = room;
-    this.assetManager = assetManager;
+    this.objectStore = objectStore;
     this.selectedCell = [0, 0];
     this.inputDebouncer = new Debouncer(200);
+  }
 
-    this.acceleration = new THREE.Vector2(2.0, 2.0);
-    this.deceleration = new THREE.Vector2(-1.0, -1.0);
-    this.velocity = new THREE.Vector2(0, 0);
+  getCombatantPos(id: string): THREE.Vector2 {
+    const idx = this.battleField.findIndex((cell) => cell === id);
+    if (idx < 0) {
+      throw new Error(`${id} doesn't exist on the battlefield.`);
+    }
+
+    return new THREE.Vector2(
+      idx % this.room.width,
+      Math.floor(idx / this.room.width),
+    );
+  }
+
+  moveCombatant(id: string, dest: THREE.Vector2) {
+    const idx = this.battleField.findIndex((cell) => cell === id);
+    const nextIdx = dest.y * this.room.width + dest.x;
+    if (idx < 0 || nextIdx > this.battleField.length || nextIdx < 0) {
+      return;
+    }
+
+    const obj = this.objectStore.getThreeObj(id);
+
+    this.battleField[idx] = _;
+    this.battleField[nextIdx] = id;
+
+    const worldPosition = this.room.layoutXYToPosition(dest.x, dest.y);
+    obj.position.copy(worldPosition);
   }
 
   loadBattleField() {
     this.battleField = [...this.room.layout];
-    const onLoad = (hero: THREE.Group) => {
-      const relativeHeroPosition = hero.position.sub(this.room.position);
-      const [x, y, heroBattleFieldIdx] =
-        this.room.positionToLayoutPosition(relativeHeroPosition);
-      this.battleField[heroBattleFieldIdx] = H;
-      this.room.setupBattleField();
-      const adjustedHeroPosition = this.room.layoutPositionToPosition(x, y);
-      hero.position.set(
-        adjustedHeroPosition.x,
-        adjustedHeroPosition.y,
-        adjustedHeroPosition.z,
-      );
-      this.setSelectedCell(x, y);
-    };
-    const hero = this.assetManager.getHero();
-    if (hero) {
-      onLoad(hero);
-    } else {
-      this.assetManager.loadHero(onLoad);
+    const hero = this.objectStore.getHero();
+    const heroThreeObj = this.objectStore.getHeroThreeObj();
+    const relativePos = heroThreeObj.position.sub(this.room.position);
+    const [x, y, idx] = this.room.posToLayoutXY(relativePos);
+    this.battleField[idx] = hero.id;
+    const adjustedHeroPos = this.room.layoutXYToPosition(x, y);
+    heroThreeObj.position.set(
+      adjustedHeroPos.x,
+      adjustedHeroPos.y,
+      adjustedHeroPos.z,
+    );
+
+    const turnOrder = [hero.id];
+    for (let i = 0; i < this.battleField.length; i++) {
+      if (this.objectStore.isEnemy(this.battleField[i])) {
+        turnOrder.push(this.battleField[i]);
+      }
+    }
+
+    this.turnOrder = turnOrder;
+    console.log(turnOrder);
+    this.room.setupBattleField();
+    this.battle();
+  }
+
+  battle() {
+    const combatantId = this.turnOrder[this.turnIdx];
+    const entity = this.objectStore.getGameObject(combatantId);
+
+    if (entity.constructor.name === "Hero") {
+      this.acceptPlayerInput = true;
+    } else if (entity.constructor.name === "Skeleton") {
+      const hero = this.objectStore.getHero();
+      const entity = this.objectStore.getGameObject(combatantId);
+      const entityXY = this.getCombatantPos(combatantId);
+      const heroXY = this.getCombatantPos(hero.id);
+      const distToHero = Math.floor(entityXY.distanceTo(heroXY));
+      if (distToHero <= entity.phys.range) {
+        console.log("ATTACK");
+      } else {
+        let delta = new THREE.Vector2(
+          -1 * Math.sign(entityXY.x - heroXY.x),
+          -1 * Math.sign(entityXY.y - heroXY.y),
+        );
+        entityXY.add(delta);
+        this.moveCombatant(combatantId, entityXY);
+      }
+
+      this.turnIdx = (this.turnIdx + 1) % this.turnOrder.length;
+      setTimeout(() => this.battle(), 1000);
     }
   }
 
@@ -114,6 +170,18 @@ export default class BattleController {
   }
 
   update(timeElapsedS: number, input: GameInput, camera: TacticsCamera) {
+    if (this.acceptPlayerInput && input.keys.space) {
+      this.acceptPlayerInput = false;
+      console.log("called")
+      this.moveCombatant(
+        this.objectStore.getHero().id,
+        new THREE.Vector2(...this.selectedCell),
+      );
+      this.turnIdx = (this.turnIdx + 1) % this.turnOrder.length;
+      setTimeout(() => this.battle(), 2000);
+      return;
+    }
+
     let delta = [0, 0];
 
     if (camera.deg.value >= 315 || camera.deg.value <= 45) {

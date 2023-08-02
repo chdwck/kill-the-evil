@@ -1,18 +1,15 @@
-import * as THREE from 'three'
-import HeroController from './HeroController';
+import * as THREE from "three";
+import GameObjectStore from "./GameObjectStore";
 
 export default class ThirdPersonCamera {
   camera: THREE.PerspectiveCamera;
   currentPosition: THREE.Vector3;
   currentLookAt: THREE.Vector3;
-  target: HeroController;
+  hero: THREE.Group;
 
-  constructor(
-    camera: THREE.PerspectiveCamera,
-    target: HeroController,
-  ) {
+  constructor(camera: THREE.PerspectiveCamera, objectStore: GameObjectStore) {
     this.camera = camera;
-    this.target = target;
+    this.hero = objectStore.getHeroThreeObj();
 
     this.currentPosition = new THREE.Vector3();
     this.currentLookAt = new THREE.Vector3();
@@ -20,15 +17,15 @@ export default class ThirdPersonCamera {
 
   calculateIdealOffset(): THREE.Vector3 {
     const idealOffset = new THREE.Vector3(-1.5, 1.5, -3.0);
-    idealOffset.applyQuaternion(this.target.rotation);
-    idealOffset.add(this.target.position);
+    idealOffset.applyQuaternion(this.hero.quaternion);
+    idealOffset.add(this.hero.position);
     return idealOffset;
   }
 
   calculateIdealLookAt(): THREE.Vector3 {
     const idealLookAt = new THREE.Vector3(0, 10, 50);
-    idealLookAt.applyQuaternion(this.target.rotation);
-    idealLookAt.add(this.target.position);
+    idealLookAt.applyQuaternion(this.hero.quaternion);
+    idealLookAt.add(this.hero.position);
     return idealLookAt;
   }
 

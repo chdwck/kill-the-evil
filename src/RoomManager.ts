@@ -1,25 +1,58 @@
 import * as THREE from "three";
-import AssetManager from "./AssetManager";
 
 const W = "w"; // wall
-const _ = "_"; // Nothing
 const E = "E"; // Enemy slot
-export const H = "H"; // Hero
-export type LayoutCell = typeof H | typeof E | typeof W | typeof _;
-
+export const _ = "_"; // Nothing
 export const WALL_HEIGHT = 5;
 
 export abstract class Room {
   position: THREE.Vector3;
 
-  layout: LayoutCell[] = [];
+  _layout: string[] = [];
   height: number = 0;
   width: number = 0;
   cellMultiplier: number = 1;
   floor: THREE.Mesh | null = null;
   battleFieldObjectNames: string[] = [];
 
-  abstract render(scene: THREE.Scene, assetManager: AssetManager): void;
+  private isLayoutHydrated: boolean = false;
+
+  constructor(position: THREE.Vector3) {
+    this.position = position;
+  }
+
+  abstract render(scene: THREE.Scene): void;
+  async hydrateLayout(
+    enemyReplacer: (x: number, y: number, room: Room) => Promise<string>,
+  ) {
+    const promises = [];
+    for (let i = 0; i < this._layout.length; i++) {
+      if (this._layout[i] === E) {
+        promises.push(
+          new Promise((resolve) => {
+            enemyReplacer(
+              i % this.width,
+              Math.floor(i / this.width),
+              this,
+            ).then((id) => {
+              this._layout[i] = id;
+              resolve(null);
+            });
+          }),
+        );
+      }
+    }
+    await Promise.all(promises)
+    this.isLayoutHydrated = true;
+  }
+
+  get layout(): string[] {
+    if (!this.isLayoutHydrated) {
+      throw new Error("Layout must be hyrdated before use.");
+    }
+
+    return this._layout;
+  }
 
   get worldHeight() {
     return this.height * this.cellMultiplier;
@@ -29,11 +62,7 @@ export abstract class Room {
     return this.width * this.cellMultiplier;
   }
 
-  constructor(position: THREE.Vector3) {
-    this.position = position;
-  }
-
-  positionToLayoutPosition(position: THREE.Vector3): [number, number, number] {
+  posToLayoutXY(position: THREE.Vector3): [number, number, number] {
     const layoutX = Math.floor(
       (position.x + this.worldWidth / 2) / this.cellMultiplier,
     );
@@ -53,7 +82,7 @@ export abstract class Room {
     return [layoutX, layoutY, layoutIdx];
   }
 
-  layoutPositionToPosition(x: number, y: number): THREE.Vector3 {
+  layoutXYToPosition(x: number, y: number): THREE.Vector3 {
     return new THREE.Vector3(
       (this.worldWidth - this.cellMultiplier) / -2 + x * this.cellMultiplier,
       0,
@@ -62,7 +91,7 @@ export abstract class Room {
   }
 
   forCells(callback: (x: number, y: number, i: number) => void) {
-    for (let i = 0; i < this.layout.length; i++) {
+    for (let i = 0; i < this._layout.length; i++) {
       const x = i % this.width;
       const y = Math.floor(i / this.width);
       callback(x, y, i);
@@ -98,7 +127,7 @@ export abstract class Room {
       const edge = new THREE.EdgesGeometry(box);
       const boxMesh = new THREE.Mesh(box, boxMaterial);
       const cell = new THREE.LineSegments(edge, lineMaterial);
-      const pos = this.layoutPositionToPosition(x, y);
+      const pos = this.layoutXYToPosition(x, y);
       cell.position.set(pos.x, -pos.z, 0.1); // invert y and z because is relative to rotated floor
       const name = this.battleFieldCellName(x, y);
       this.battleFieldObjectNames.push(name);
@@ -141,7 +170,7 @@ export abstract class Room {
 
     let j = 0;
     for (let i = start; i < max; i += increment) {
-      if (this.layout[i] !== W) {
+      if (this._layout[i] !== W) {
         if (wallLen > 0) {
           walls.push([wallStart, wallLen]);
         }
@@ -241,8 +270,9 @@ class EntryRoom extends Room {
   height: number = 10;
   width: number = 10;
   cellMultiplier: number = 2;
+
   // prettier-ignore
-  layout: LayoutCell[] = [
+  _layout: string[] = [
     W,W,W,W,W,W,W,W,W,W,
     W,_,_,_,_,_,_,_,_,W,
     W,_,E,_,_,_,_,E,_,W,
@@ -259,46 +289,25 @@ class EntryRoom extends Room {
     super(position);
   }
 
-  renderEnemies(scene: THREE.Scene, assetManager: AssetManager) {
-    this.forCells((x, y, i) => {
-      if (this.layout[i] === E) {
-        assetManager.loadSkeleton((name, fbx) => {
-          scene.add(fbx);
-          fbx.position.copy(this.position);
-          const next = this.layoutPositionToPosition(x, y);
-          fbx.position.add(new THREE.Vector3(next.x, next.y, next.z));
-          // fbx.position.add(
-          //   new THREE.Vector3(
-          //     (xOffset + 0.5 - this.width / 2) * this.cellMultiplier,
-          //     0,
-          //     (yOffset + 0.5 - this.height / 2) * this.cellMultiplier,
-          //   ),
-          // );
-        });
-      }
-    });
-  }
-
-  render(scene: THREE.Scene, assetManager: AssetManager) {
+  render(scene: THREE.Scene) {
     this.renderFloorAndWalls(scene);
-    this.renderEnemies(scene, assetManager);
   }
 }
 
 export abstract class RoomEvent {
   name: string;
+  room: Room;
 
-  constructor(name: string) {
+  constructor(name: string, room: Room) {
     this.name = name;
+    this.room = room;
   }
 }
 
-export class RoomEnteredEvent extends RoomEvent {
-  static eventName = "RoomEntered";
-  room: Room;
+export class RoomRenderedEvent extends RoomEvent {
+  static eventName = "RoomRenderedEvent";
   constructor(room: Room) {
-    super(RoomEnteredEvent.eventName);
-    this.room = room;
+    super(RoomRenderedEvent.eventName, room);
   }
 }
 
@@ -306,27 +315,16 @@ type RoomEventHandler = <TEvent extends RoomEvent>(event: TEvent) => void;
 export default class RoomManager {
   scene: THREE.Scene;
   currentRoom: Room;
-  assetManager: AssetManager;
   eventHandler: RoomEventHandler;
 
-  constructor(
-    scene: THREE.Scene,
-    assetManager: AssetManager,
-    eventHandler: RoomEventHandler,
-  ) {
+  constructor(scene: THREE.Scene, eventHandler: RoomEventHandler) {
     this.scene = scene;
-    this.assetManager = assetManager;
     this.eventHandler = eventHandler;
     this.currentRoom = new EntryRoom(new THREE.Vector3(0, 0, 0));
   }
 
   init() {
-    this.currentRoom.render(this.scene, this.assetManager);
-    this.eventHandler(new RoomEnteredEvent(this.currentRoom));
-  }
-
-  update() {
-    const hero = this.assetManager.getHero();
-    // console.log(hero?.position)
+    this.currentRoom.render(this.scene);
+    this.eventHandler(new RoomRenderedEvent(this.currentRoom));
   }
 }

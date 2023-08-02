@@ -1,9 +1,9 @@
 import * as THREE from "three";
-import { FBXLoader } from "three/examples/jsm/loaders/FBXLoader";
 
 import FSM, { type State } from "./FSM";
 import { GameControllerProxy } from "./GameController";
 import GameInput from "./GameInput";
+import GameObjectStore from "./GameObjectStore";
 
 type Animation = {
   clip: THREE.AnimationClip;
@@ -21,67 +21,28 @@ class HeroControllerProxy {
 export default class HeroController {
   proxy: GameControllerProxy;
   fsm: HeroFSM;
-  mixer!: THREE.AnimationMixer;
-  target!: THREE.Group;
-  manager!: THREE.LoadingManager;
-  animations: Record<string, Animation> = {};
+  objectStore: GameObjectStore;
   position: THREE.Vector3;
   deceleration: THREE.Vector3;
   acceleration: THREE.Vector3;
   velocity: THREE.Vector3;
 
-  constructor(proxy: GameControllerProxy) {
+  constructor(proxy: GameControllerProxy, objectStore: GameObjectStore) {
     this.proxy = proxy;
     this.deceleration = new THREE.Vector3(-0.0005, -0.0001, -5.0);
     this.acceleration = new THREE.Vector3(1, 0.25, 25.0);
     this.velocity = new THREE.Vector3(0, 0, 0);
     this.position = new THREE.Vector3();
-    this.fsm = new HeroFSM(new HeroControllerProxy(this.animations));
-    this.loadModels();
-  }
-
-  get rotation(): THREE.Quaternion {
-    if (!this.target) {
-      return new THREE.Quaternion();
-    }
-
-    return this.target.quaternion;
-  }
-
-  loadModels() {
-    this.proxy.assetManager.loadHero(heroFbx => {
-      this.target = heroFbx;
-      this.mixer = new THREE.AnimationMixer(this.target);
-
-      this.manager = new THREE.LoadingManager();
-      this.manager.onLoad = () => {
-        this.fsm.setState("idle");
-      };
-
-      const onLoad = (animationName: string, animation: THREE.Group) => {
-        const clip = animation.animations[0];
-        const action = this.mixer.clipAction(clip);
-
-        this.animations[animationName] = {
-          clip,
-          action,
-        };
-      };
-
-      const animationLoader = new FBXLoader(this.manager);
-      animationLoader.setPath("./assets/content/Characters/");
-      animationLoader.load("idle.fbx", (anim) => onLoad("idle", anim));
-      animationLoader.load("run.fbx", (anim) => onLoad("run", anim));
-      animationLoader.load("walk.fbx", (anim) => onLoad("walk", anim));
-      animationLoader.load("dance.fbx", (anim) => onLoad("dance", anim));
-    });
-  }
+    this.objectStore = objectStore;
+    this.fsm = new HeroFSM(
+      new HeroControllerProxy(
+        this.objectStore.getHeroAnimationController().animations,
+      ),
+    );
+    this.fsm.setState(IdleState.staticName)
+ }
 
   update(timeInSeconds: number) {
-    if (!this.target) {
-      return;
-    }
-
     this.fsm.update(timeInSeconds, this.proxy.input);
 
     const velocity = this.velocity;
@@ -98,7 +59,7 @@ export default class HeroController {
 
     velocity.add(frameDeleceration);
 
-    const controlObject = this.target;
+    const controlObject = this.objectStore.getHeroThreeObj();
     const quat = new THREE.Quaternion();
     const a = new THREE.Vector3();
     const r = controlObject.quaternion.clone();
@@ -156,9 +117,7 @@ export default class HeroController {
 
     this.position.copy(controlObject.position);
 
-    if (this.mixer) {
-      this.mixer.update(timeInSeconds);
-    }
+    this.objectStore.getHeroAnimationController().mixer.update(timeInSeconds);
   }
 }
 
@@ -223,13 +182,14 @@ class DanceState implements HeroState {
 }
 
 class IdleState implements HeroState {
+  static staticName: string = 'idle'
   parent: HeroFSM;
   constructor(parent: HeroFSM) {
     this.parent = parent;
   }
 
   get name() {
-    return "idle";
+    return IdleState.staticName;
   }
 
   enter(prevState: HeroState | null) {
