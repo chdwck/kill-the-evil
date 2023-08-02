@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { FBXLoader } from "three/examples/jsm/loaders/FBXLoader";
 
-class Physicalilty {
+export class Physicalilty {
   health: number;
   attack: number;
   range: number;
