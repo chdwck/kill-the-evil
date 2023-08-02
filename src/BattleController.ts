@@ -43,9 +43,14 @@ function addVec2(base: Vec2, other: Vec2): Vec2 {
   return [base[0] + other[0], base[1] + other[1]];
 }
 
+function toIndex(pos: Vec2, width: number) {
+  return (pos[1] * width) + (pos[0] % width)
+}
+
 class Move {
   threeObj: THREE.Group;
   onComplete: Function;
+  onUpdate: (direction: THREE.Vector3) => void;
 
   private curvePoint: number = 0;
   private curve: THREE.CatmullRomCurve3;
@@ -53,16 +58,20 @@ class Move {
   constructor(
     threeObj: THREE.Group,
     path: THREE.Vector3[],
+    onUpdate: (direction: THREE.Vector3) => void,
     onComplete: Function,
   ) {
     this.threeObj = threeObj;
+    this.onUpdate = onUpdate;
     this.onComplete = onComplete;
     this.curve = new THREE.CatmullRomCurve3(path);
   }
 
   update(increment: number) {
+    increment = increment / this.curve.points.length;
     this.curvePoint = Math.min(increment + this.curvePoint, 1);
     const vector = this.curve.getPoint(this.curvePoint);
+    this.onUpdate(vector);
     this.threeObj.position.copy(vector);
     if (this.curvePoint === 1) {
       this.onComplete();
@@ -100,9 +109,7 @@ export default class BattleController {
   }
 
   getIdAtPos(pos: Vec2): string {
-    return this.battleField[
-      pos[1] * this.room.width + (pos[0] % this.room.width)
-    ];
+    return this.battleField[toIndex(pos, this.room.width)];
   }
 
   loadBattleField() {
@@ -157,27 +164,58 @@ export default class BattleController {
     }
 
     const hero = this.objectStore.getHero();
+    const heroThreeObj = this.objectStore.getHeroThreeObj();
     const entityXY = this.getCombatantPos(combatantId);
     const heroXY = this.getCombatantPos(hero.id);
     const entityThreeObj = this.objectStore.getThreeObj(combatantId);
     const path = this.getMovePath(entity.phys, entityXY, heroXY);
-    const move = new Move(entityThreeObj, path, () => {
-      this.actions.shift(); // TODO: use a queue
-      this.turnIdx = (this.turnIdx + 1) % this.turnOrder.length;
-      this.battle();
-    });
+    const animationController =
+      this.objectStore.getAnimationController(combatantId);
+    const walkAction = animationController.animations["walk"].action;
+    const idleAction = animationController.animations["idle"].action;
+    walkAction.time = 0.0;
+    walkAction.enabled = true;
+    walkAction.setEffectiveTimeScale(1.0);
+    walkAction.setEffectiveWeight(1.0);
+    walkAction.crossFadeFrom(idleAction, 0.5, true);
+    walkAction.play();
+    const move = new Move(
+      entityThreeObj,
+      path.map((pos) => this.room.layoutXYToPosition(...pos)),
+      (direction) => {
+        entityThreeObj.lookAt(direction);
+      },
+      () => {
+        const endPos = path[path.length - 1]
+        const startIdx = toIndex(entityXY, this.room.width);
+        const endIdx = toIndex(endPos, this.room.width); 
+        this.battleField[startIdx] = _;
+        this.battleField[endIdx] = combatantId;
+        this.printBattleField();
+        entityThreeObj.lookAt(heroThreeObj.position);
+        idleAction.time = 0.0;
+        idleAction.enabled = true;
+        idleAction.setEffectiveTimeScale(1.0);
+        idleAction.setEffectiveWeight(1.0);
+        idleAction.crossFadeFrom(walkAction, 0.5, true);
+        idleAction.play();
+        this.actions.shift(); // TODO: use a queue
+        this.turnIdx = (this.turnIdx + 1) % this.turnOrder.length;
+        this.battle();
+      },
+    );
     this.actions.push(move);
   }
 
-  getMovePath(phys: Physicalilty, from: Vec2, to: Vec2): THREE.Vector3[] {
+  getMovePath(phys: Physicalilty, from: Vec2, to: Vec2): Vec2[] {
     let path = [from];
     let stuck = false;
     let xDelta = 0;
     let yDelta = 0;
     let prev = path[path.length - 1];
     while (path.length <= phys.range && !stuck) {
-      xDelta = Math.sign(to[0] - from[0]);
-      yDelta = Math.sign(to[1] - from[1]);
+      xDelta = Math.sign(to[0] - prev[0]);
+      yDelta = Math.sign(to[1] - prev[1]);
       prev = path[path.length - 1];
 
       let tempDest = addVec2(prev, [xDelta, yDelta]);
@@ -203,7 +241,8 @@ export default class BattleController {
 
       stuck = true;
     }
-    return path.map((pos) => this.room.layoutXYToPosition(...pos));
+
+    return path;
   }
 
   setSelectedCell(x: number, y: number) {
@@ -238,6 +277,7 @@ export default class BattleController {
   }
 
   update(timeElapsedS: number, input: GameInput, camera: TacticsCamera) {
+    this.objectStore.updateAll(timeElapsedS);
     if (this.acceptPlayerInput && input.keys.space) {
       this.acceptPlayerInput = false;
       this.moveCombatant(
@@ -245,7 +285,7 @@ export default class BattleController {
         new THREE.Vector2(...this.selectedCell),
       );
       this.turnIdx = (this.turnIdx + 1) % this.turnOrder.length;
-      setTimeout(() => this.battle(), 2000);
+      this.battle();
       return;
     }
 

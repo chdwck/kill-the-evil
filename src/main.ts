@@ -30,7 +30,7 @@ export class KillTheEvil {
 
     this.scene = new THREE.Scene();
 
-    const light = new THREE.HemisphereLight(0xffffff, 0xffffff, 1.0);
+    const light = new THREE.HemisphereLight(0x000000, 0xffffff, 1.0);
     this.scene.add(light);
 
     this.gameController = new GameController(this.scene, this.camera);

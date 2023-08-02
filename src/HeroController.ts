@@ -39,8 +39,8 @@ export default class HeroController {
         this.objectStore.getHeroAnimationController().animations,
       ),
     );
-    this.fsm.setState(IdleState.staticName)
- }
+    this.fsm.setState(IdleState.staticName);
+  }
 
   update(timeInSeconds: number) {
     this.fsm.update(timeInSeconds, this.proxy.input);
@@ -65,6 +65,10 @@ export default class HeroController {
     const r = controlObject.quaternion.clone();
 
     const acc = this.acceleration.clone();
+    if (this.proxy.input.keys.backward) {
+      acc.multiplyScalar(0.5); // slow down when walking backwards
+    }
+
     if (this.proxy.input.keys.shift) {
       acc.multiplyScalar(2.0); // speed up to run
     }
@@ -129,12 +133,14 @@ class HeroFSM extends FSM<HeroControllerProxy, GameInput> {
       idle: new IdleState(this),
       run: new RunState(this),
       walk: new WalkState(this),
+      walkback: new WalkBackState(this),
       dance: new DanceState(this),
     };
   }
 }
 
 class DanceState implements HeroState {
+  static staticName: string = 'dance'
   parent: HeroFSM;
 
   constructor(parent: HeroFSM) {
@@ -144,7 +150,7 @@ class DanceState implements HeroState {
   }
 
   get name() {
-    return "dance";
+    return DanceState.staticName;
   }
 
   enter(prevState: HeroState | null) {
@@ -168,7 +174,7 @@ class DanceState implements HeroState {
 
   finished() {
     this.cleanUp();
-    this.parent.setState("idle");
+    this.parent.setState(IdleState.staticName);
   }
 
   cleanUp() {
@@ -182,7 +188,7 @@ class DanceState implements HeroState {
 }
 
 class IdleState implements HeroState {
-  static staticName: string = 'idle'
+  static staticName: string = "idle";
   parent: HeroFSM;
   constructor(parent: HeroFSM) {
     this.parent = parent;
@@ -211,22 +217,74 @@ class IdleState implements HeroState {
   exit() {}
 
   update(_timeElapsed: number, input: GameInput) {
-    if (input.keys.forward || input.keys.backward) {
-      this.parent.setState("walk");
+    if (input.keys.forward) {
+      this.parent.setState(WalkState.staticName);
+    } else if (input.keys.backward) {
+      this.parent.setState(WalkBackState.staticName);
     } else if (input.keys.space) {
-      this.parent.setState("dance");
+      this.parent.setState(DanceState.staticName);
     }
   }
 }
 
-class WalkState implements HeroState {
+class WalkBackState implements HeroState {
+  static staticName: string = "walkback";
   parent: HeroFSM;
   constructor(parent: HeroFSM) {
     this.parent = parent;
   }
 
   get name() {
-    return "walk";
+    return WalkBackState.staticName;
+  }
+
+  enter(prevState: HeroState) {
+    const curAction = this.parent.proxy.animations["walkback"].action;
+    if (prevState) {
+      const prevAction = this.parent.proxy.animations[prevState.name].action;
+
+      curAction.enabled = true;
+
+      curAction.time = 0.0;
+      curAction.setEffectiveTimeScale(1.0);
+      curAction.setEffectiveWeight(1.0);
+
+      curAction.crossFadeFrom(prevAction, 0.5, true);
+      curAction.play();
+    } else {
+      curAction.play();
+    }
+  }
+
+  exit() {}
+
+  update(_timeElpased: number, input: GameInput) {
+    if (input.keys.forward) {
+      if (input.keys.shift) {
+        this.parent.setState("run");
+      } else {
+        this.parent.setState("walk");
+      }
+      return;
+    }
+
+    if (input.keys.backward) {
+      return;
+    }
+
+    this.parent.setState(IdleState.staticName);
+  }
+}
+
+class WalkState implements HeroState {
+  static staticName: string = "walk";
+  parent: HeroFSM;
+  constructor(parent: HeroFSM) {
+    this.parent = parent;
+  }
+
+  get name() {
+    return WalkState.staticName;
   }
 
   enter(prevState: HeroState) {
@@ -256,25 +314,31 @@ class WalkState implements HeroState {
   exit() {}
 
   update(_timeElpased: number, input: GameInput) {
-    if (input.keys.forward || input.keys.backward) {
+    if (input.keys.forward) {
       if (input.keys.shift) {
         this.parent.setState("run");
       }
       return;
     }
 
-    this.parent.setState("idle");
+    if (input.keys.backward) {
+      this.parent.setState(WalkBackState.staticName);
+      return;
+    }
+
+    this.parent.setState(IdleState.staticName);
   }
 }
 
 class RunState implements HeroState {
+  static staticName: string = "run";
   parent: HeroFSM;
   constructor(parent: HeroFSM) {
     this.parent = parent;
   }
 
   get name() {
-    return "run";
+    return RunState.staticName;
   }
 
   enter(prevState: HeroState) {
@@ -304,13 +368,18 @@ class RunState implements HeroState {
   exit() {}
 
   update(_timeElpased: number, input: GameInput) {
-    if (input.keys.forward || input.keys.backward) {
+    if (input.keys.forward) {
       if (!input.keys.shift) {
         this.parent.setState("walk");
       }
       return;
     }
 
-    this.parent.setState("idle");
+    if (input.keys.backward) {
+      this.parent.setState(WalkBackState.staticName);
+      return;
+    }
+
+    this.parent.setState(IdleState.staticName);
   }
 }

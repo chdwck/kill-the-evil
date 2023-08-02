@@ -28,7 +28,7 @@ class Hero extends GameObject {
   static heroId: string = "h";
   isEnemy: boolean = false;
   constructor() {
-    super(Hero.heroId, new Physicalilty(50, 5, 1));
+    super(Hero.heroId, new Physicalilty(50, 5, 4));
   }
 }
 
@@ -40,7 +40,7 @@ class Skeleton extends GameObject {
   }
 
   constructor(idSuffix: string) {
-    super(Skeleton.skeletonId(idSuffix), new Physicalilty(10, 5, 1));
+    super(Skeleton.skeletonId(idSuffix), new Physicalilty(10, 5, 4));
   }
 }
 
@@ -105,6 +105,13 @@ export default class GameObjectStore {
     return this.getThreeObj(Hero.heroId);
   }
 
+  updateAll(timeElapsedS: number) {
+    const keys = Object.keys(this.entities);
+    for (let i = 0; i < keys.length; i ++) {
+      this.animations[keys[i]].mixer.update(timeElapsedS);
+    }
+  }
+
   async createHero(): Promise<Hero> {
     const hero = new Hero();
     this.entities[hero.id] = hero;
@@ -120,10 +127,10 @@ export default class GameObjectStore {
     const animations: Record<string, Animation> = {};
     const mixer = new THREE.AnimationMixer(fbx);
     const promises: Promise<undefined>[] = [];
-    this.loader.setPath("./assets/content/Characters/");
     promises.push(this.addAnimation('idle', mixer, animations))
     promises.push(this.addAnimation('run', mixer, animations))
     promises.push(this.addAnimation('walk', mixer, animations))
+    promises.push(this.addAnimation('walkback', mixer, animations))
     promises.push(this.addAnimation('dance', mixer, animations))
     await Promise.all(promises);
     this.animations[hero.id] = {
@@ -131,6 +138,7 @@ export default class GameObjectStore {
       animations,
     };
     animations['idle'].action.play();
+    mixer.update(0)
     return hero;
   }
 
@@ -150,9 +158,9 @@ export default class GameObjectStore {
   async createSkeleton(): Promise<Skeleton> {
     const idSuffix = Object.keys(this.entities).length.toString();
     const skeleton = new Skeleton(idSuffix);
-
     this.entities[skeleton.id] = skeleton;
-    this.loader.setPath("./assets/content/Characters/");
+
+    this.loader.setPath("./assets/skeleton/");
     const fbx = await this.loader.loadAsync("skeleton.fbx");
     fbx.scale.setScalar(0.3);
     fbx.traverse((c) => {
@@ -161,6 +169,18 @@ export default class GameObjectStore {
 
     fbx.name = skeleton.id;
     this.scene.add(fbx);
+    const animations: Record<string, Animation> = {};
+    const mixer = new THREE.AnimationMixer(fbx);
+    const promises: Promise<undefined>[] = [];
+    promises.push(this.addAnimation('idle', mixer, animations))
+    promises.push(this.addAnimation('walk', mixer, animations))
+    await Promise.all(promises);
+    this.animations[skeleton.id] = {
+      mixer,
+      animations,
+    };
+    animations['idle'].action.play();
+    mixer.update(0)
     return skeleton;
   }
 }
