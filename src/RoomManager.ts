@@ -1,8 +1,6 @@
 import * as THREE from "three";
+import { _, W, E } from "./2d";
 
-const W = "w"; // wall
-const E = "E"; // Enemy slot
-export const _ = "_"; // Nothing
 export const WALL_HEIGHT = 5;
 
 export abstract class Room {
@@ -42,7 +40,7 @@ export abstract class Room {
         );
       }
     }
-    await Promise.all(promises)
+    await Promise.all(promises);
     this.isLayoutHydrated = true;
   }
 
@@ -137,12 +135,20 @@ export abstract class Room {
     });
   }
 
-  toggleCellHighlight(x: number, y: number, enable: boolean) {
+  toggleCellHighlight(
+    x: number,
+    y: number,
+    enable: boolean,
+    cursor: boolean = false,
+    positiveCursor: boolean = false,
+  ) {
     let cell = this.floor?.getObjectByName(this.battleFieldCellName(x, y));
     if (cell) {
-      (
-        (cell.children[0] as THREE.Mesh).material as THREE.MeshBasicMaterial
-      ).opacity = enable ? 1 : 0;
+      const material = (cell.children[0] as THREE.Mesh)
+        .material as THREE.MeshBasicMaterial;
+      material.opacity = enable ? 1 : 0;
+      const color = cursor ? (positiveCursor ? 0xff00ff : 0xff0000) : 0x1fff0f;
+      material.color = new THREE.Color(color);
     }
   }
 

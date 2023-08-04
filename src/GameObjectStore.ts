@@ -24,11 +24,11 @@ abstract class GameObject {
   }
 }
 
-class Hero extends GameObject {
+export class Hero extends GameObject {
   static heroId: string = "h";
   isEnemy: boolean = false;
   constructor() {
-    super(Hero.heroId, new Physicalilty(50, 5, 4));
+    super(Hero.heroId, new Physicalilty(50, 3, 4));
   }
 }
 
