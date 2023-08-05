@@ -1,5 +1,4 @@
 import * as THREE from "three";
-import BattleController from "./BattleController";
 import { Room, WALL_HEIGHT } from "./RoomManager";
 import GameInput from "./GameInput";
 

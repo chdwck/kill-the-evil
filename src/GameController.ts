@@ -3,7 +3,6 @@ import FSM, { type State } from "./FSM";
 import GameInput from "./GameInput";
 import HeroController from "./HeroController";
 import ThirdPersonCamera from "./ThirdPersonCamera";
-import GameObjectStore from "./GameObjectStore";
 import RoomManager, {
   type RoomEvent,
   RoomRenderedEvent,
@@ -11,18 +10,24 @@ import RoomManager, {
 } from "./RoomManager";
 import TacticsCamera from "./TacticsCamera";
 import BattleController from "./BattleController";
+import {
+  createSkeleton,
+  getEntity,
+  getThreeObj,
+  heroId,
+  loadThreeObj,
+  registerEntity,
+} from "./entities";
 
 export class GameControllerProxy {
   scene: THREE.Scene;
   camera: THREE.PerspectiveCamera;
-  objectStore: GameObjectStore;
   roomManager: RoomManager;
   input: GameInput;
 
   constructor(gc: GameController) {
     this.scene = gc.scene;
     this.camera = gc.camera;
-    this.objectStore = gc.objectStore;
     this.roomManager = gc.roomManager;
     this.input = gc.input;
   }
@@ -32,7 +37,6 @@ export default class GameController {
   fsm: GameFSM | undefined;
   scene: THREE.Scene;
   camera: THREE.PerspectiveCamera;
-  objectStore: GameObjectStore;
   roomManager: RoomManager;
   input: GameInput;
 
@@ -44,11 +48,10 @@ export default class GameController {
       this.roomEventHandler.bind(this),
     );
     this.input = new GameInput();
-    this.objectStore = new GameObjectStore(this.scene);
   }
 
   async init() {
-    await this.objectStore.createHero();
+    await loadThreeObj(this.scene, getEntity(heroId)!);
     this.fsm = new GameFSM(new GameControllerProxy(this));
     this.fsm.setState(ExploreState.staticName);
     this.roomManager.init();
@@ -59,11 +62,11 @@ export default class GameController {
     y: number,
     room: Room,
   ): Promise<string> {
-    const skele = await this.objectStore.createSkeleton();
-    const obj = this.objectStore.getThreeObj(skele.id);
+    const skele = registerEntity(createSkeleton(`${x}${y}`));
+    const obj = await loadThreeObj(this.scene, skele);
     if (obj) {
       obj.position.copy(room.layoutXYToPosition(x, y));
-      obj.lookAt(this.objectStore.getHeroThreeObj().position);
+      obj.lookAt(getThreeObj(this.scene, heroId)!.position);
     }
     return skele.id;
   }
@@ -104,14 +107,8 @@ class ExploreState implements GameState {
 
   constructor(fsm: GameFSM) {
     this.parent = fsm;
-    this.heroController = new HeroController(
-      this.parent.proxy,
-      this.parent.proxy.objectStore,
-    );
-    this.thirdPersonCamera = new ThirdPersonCamera(
-      this.parent.proxy.camera,
-      this.parent.proxy.objectStore,
-    );
+    this.heroController = new HeroController(this.parent.proxy);
+    this.thirdPersonCamera = new ThirdPersonCamera(this.parent.proxy.camera, this.parent.proxy.scene);
   }
 
   get name() {
@@ -148,7 +145,7 @@ class BattleState implements GameState {
     this.parent = fsm;
     this.battleController = new BattleController(
       this.parent.proxy.roomManager.currentRoom,
-      this.parent.proxy.objectStore,
+      this.parent.proxy.scene
     );
     this.tacticsCamera = new TacticsCamera(
       this.parent.proxy.camera,

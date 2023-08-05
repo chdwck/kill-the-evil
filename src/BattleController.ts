@@ -2,9 +2,9 @@ import * as THREE from "three";
 import GameInput from "./GameInput";
 import { Room } from "./RoomManager";
 import TacticsCamera from "./TacticsCamera";
-import GameObjectStore, { Physicalilty, Hero } from "./GameObjectStore";
 import { Vec2, toIndex, addVec2, fromIndex, pathfind, _, equalsVec2 } from "./2d";
 import { Debouncer } from "./Debouncer";
+import { GameEntity, getAnimationController, getEntity, getThreeObj, heroId, updateAllAnimations } from "./entities";
 
 class Move {
   threeObj: THREE.Group;
@@ -37,7 +37,6 @@ class Move {
 
 export default class BattleController {
   room: Room;
-  objectStore: GameObjectStore;
   selectedCell: Vec2;
   inputDebouncer: Debouncer;
 
@@ -48,16 +47,13 @@ export default class BattleController {
   // TODO: optimize with queue
   actions: Move[] = [];
   path: Vec2[] = [];
+  scene: THREE.Scene;
 
-  constructor(room: Room, objectStore: GameObjectStore) {
+  constructor(room: Room, scene: THREE.Scene) {
     this.room = room;
-    this.objectStore = objectStore;
+    this.scene = scene;
     this.selectedCell = [0, 0];
     this.inputDebouncer = new Debouncer(200);
-  }
-
-  get hero(): Hero {
-    return this.objectStore.getHero();
   }
 
   getCombatantPos(id: string): Vec2 {
@@ -75,10 +71,10 @@ export default class BattleController {
 
   loadBattleField() {
     this.battleField = [...this.room.layout];
-    const heroThreeObj = this.objectStore.getHeroThreeObj();
+    const heroThreeObj = getThreeObj(this.scene, heroId)!;
     const relativePos = heroThreeObj.position.sub(this.room.position);
     const [x, y, idx] = this.room.posToLayoutXY(relativePos);
-    this.battleField[idx] = this.hero.id;
+    this.battleField[idx] = heroId;
     const adjustedHeroPos = this.room.layoutXYToPosition(x, y);
     heroThreeObj.position.set(
       adjustedHeroPos.x,
@@ -86,9 +82,9 @@ export default class BattleController {
       adjustedHeroPos.z,
     );
 
-    const turnOrder = [this.hero.id];
+    const turnOrder = [heroId];
     for (let i = 0; i < this.battleField.length; i++) {
-      if (this.objectStore.isEnemy(this.battleField[i])) {
+      if (getEntity(this.battleField[i])?.isEnemy) {
         turnOrder.push(this.battleField[i]);
       }
     }
@@ -99,16 +95,16 @@ export default class BattleController {
   }
 
   addMoveBattleAction(id: string, dest: Vec2) {
-    const entity = this.objectStore.getGameObject(id);
-    const entityThreeObj = this.objectStore.getThreeObj(id);
+    const entity = getEntity(id)!;
+    const entityThreeObj = getThreeObj(this.scene, id)!;
     const entityXY = this.getCombatantPos(id);
-    const path = this.getMovePath(entity.phys, entityXY, dest);
+    const path = this.getMovePath(entity, entityXY, dest);
     if (path.length <= 1) {
       this.turnIdx = (this.turnIdx + 1) % this.turnOrder.length;
       this.battle();
       return;
     }
-    const animationController = this.objectStore.getAnimationController(id);
+    const animationController = getAnimationController(id)!;
     const walkAction = animationController.animations["walk"].action;
     const idleAction = animationController.animations["idle"].action;
     walkAction.time = 0.0;
@@ -143,10 +139,10 @@ export default class BattleController {
 
   battle() {
     const combatantId = this.turnOrder[this.turnIdx];
-    const entity = this.objectStore.getGameObject(combatantId);
-    const heroXY = this.getCombatantPos(this.hero.id);
+    const entity = getEntity(combatantId)!;
+    const heroXY = this.getCombatantPos(heroId);
 
-    if (entity.constructor.name === "Hero") {
+    if (!entity.isEnemy) {
       this.acceptPlayerInput = true;
       this.setSelectedCell(heroXY);
       return;
@@ -156,7 +152,7 @@ export default class BattleController {
   }
 
   getMovePath(
-    phys: Physicalilty,
+    entity: GameEntity,
     from: Vec2,
     to: Vec2
   ): Vec2[] {
@@ -165,7 +161,7 @@ export default class BattleController {
       this.room.width,
       from,
       to,
-      phys.range,
+      entity.moveRange,
     );
   }
 
@@ -190,8 +186,9 @@ export default class BattleController {
     this.clearAllCellHighlights();
     x = x >= 0 ? (x < this.room.width ? x : this.room.width - 1) : 0;
     y = y >= 0 ? (y < this.room.height ? y : this.room.height - 1) : 0;
-    const heroXY = this.getCombatantPos(this.hero.id);
-    const path = this.getMovePath(this.hero.phys, heroXY, [x, y]);
+    const heroXY = this.getCombatantPos(heroId);
+    const hero = getEntity(heroId)!;
+    const path = this.getMovePath(hero, heroXY, [x, y]);
     path.forEach((point) => {
       this.room.toggleCellHighlight(...point, true);
     });
@@ -225,7 +222,7 @@ export default class BattleController {
   }
 
   update(timeElapsedS: number, input: GameInput, camera: TacticsCamera) {
-    this.objectStore.updateAll(timeElapsedS);
+    updateAllAnimations(timeElapsedS);
 
     if (!this.acceptPlayerInput) {
       this.setSelectedCell(undefined);
@@ -233,7 +230,7 @@ export default class BattleController {
 
     if (this.acceptPlayerInput && input.keys.space) {
       this.acceptPlayerInput = false;
-      this.addMoveBattleAction(this.hero.id, this.selectedCell);
+      this.addMoveBattleAction(heroId, this.selectedCell);
       return;
     }
 

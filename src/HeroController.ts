@@ -3,7 +3,7 @@ import * as THREE from "three";
 import FSM, { type State } from "./FSM";
 import { GameControllerProxy } from "./GameController";
 import GameInput from "./GameInput";
-import GameObjectStore from "./GameObjectStore";
+import { getAnimationController, getThreeObj, heroId } from "./entities";
 
 type Animation = {
   clip: THREE.AnimationClip;
@@ -21,22 +21,20 @@ class HeroControllerProxy {
 export default class HeroController {
   proxy: GameControllerProxy;
   fsm: HeroFSM;
-  objectStore: GameObjectStore;
   position: THREE.Vector3;
   deceleration: THREE.Vector3;
   acceleration: THREE.Vector3;
   velocity: THREE.Vector3;
 
-  constructor(proxy: GameControllerProxy, objectStore: GameObjectStore) {
+  constructor(proxy: GameControllerProxy) {
     this.proxy = proxy;
     this.deceleration = new THREE.Vector3(-0.0005, -0.0001, -5.0);
     this.acceleration = new THREE.Vector3(1, 0.25, 25.0);
     this.velocity = new THREE.Vector3(0, 0, 0);
     this.position = new THREE.Vector3();
-    this.objectStore = objectStore;
     this.fsm = new HeroFSM(
       new HeroControllerProxy(
-        this.objectStore.getHeroAnimationController().animations,
+        getAnimationController(heroId)!.animations,
       ),
     );
     this.fsm.setState(IdleState.staticName);
@@ -59,7 +57,7 @@ export default class HeroController {
 
     velocity.add(frameDeleceration);
 
-    const controlObject = this.objectStore.getHeroThreeObj();
+    const controlObject = getThreeObj(this.proxy.scene, heroId)!;
     const quat = new THREE.Quaternion();
     const a = new THREE.Vector3();
     const r = controlObject.quaternion.clone();
@@ -121,7 +119,7 @@ export default class HeroController {
 
     this.position.copy(controlObject.position);
 
-    this.objectStore.getHeroAnimationController().mixer.update(timeInSeconds);
+    getAnimationController(heroId)!.mixer.update(timeInSeconds);
   }
 }
 

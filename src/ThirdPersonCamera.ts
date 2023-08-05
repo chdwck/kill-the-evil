@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import GameObjectStore from "./GameObjectStore";
+import { getThreeObj, heroId } from "./entities";
 
 export default class ThirdPersonCamera {
   camera: THREE.PerspectiveCamera;
@@ -7,9 +7,9 @@ export default class ThirdPersonCamera {
   currentLookAt: THREE.Vector3;
   hero: THREE.Group;
 
-  constructor(camera: THREE.PerspectiveCamera, objectStore: GameObjectStore) {
+  constructor(camera: THREE.PerspectiveCamera, scene: THREE.Scene) {
     this.camera = camera;
-    this.hero = objectStore.getHeroThreeObj();
+    this.hero = getThreeObj(scene, heroId)!;
 
     this.currentPosition = new THREE.Vector3();
     this.currentLookAt = new THREE.Vector3();
