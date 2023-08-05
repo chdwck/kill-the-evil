@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import FSM, { type State } from "./FSM";
-import GameInput from "./GameInput";
+import { readKey } from "./GameInput";
 import HeroController from "./HeroController";
 import ThirdPersonCamera from "./ThirdPersonCamera";
 import RoomManager, {
@@ -23,13 +23,11 @@ export class GameControllerProxy {
   scene: THREE.Scene;
   camera: THREE.PerspectiveCamera;
   roomManager: RoomManager;
-  input: GameInput;
 
   constructor(gc: GameController) {
     this.scene = gc.scene;
     this.camera = gc.camera;
     this.roomManager = gc.roomManager;
-    this.input = gc.input;
   }
 }
 
@@ -38,7 +36,6 @@ export default class GameController {
   scene: THREE.Scene;
   camera: THREE.PerspectiveCamera;
   roomManager: RoomManager;
-  input: GameInput;
 
   constructor(scene: THREE.Scene, camera: THREE.PerspectiveCamera) {
     this.scene = scene;
@@ -47,7 +44,6 @@ export default class GameController {
       this.scene,
       this.roomEventHandler.bind(this),
     );
-    this.input = new GameInput();
   }
 
   async init() {
@@ -82,13 +78,13 @@ export default class GameController {
       return;
     }
     if (this.fsm.currentState) {
-      this.fsm.currentState.update(timeElapsedS, this.input);
+      this.fsm.currentState.update(timeElapsedS);
     }
   }
 }
 
-type GameState = State<GameControllerProxy, GameInput>;
-class GameFSM extends FSM<GameControllerProxy, GameInput> {
+type GameState = State<GameControllerProxy>;
+class GameFSM extends FSM<GameControllerProxy> {
   constructor(proxy: GameControllerProxy) {
     super(proxy);
 
@@ -115,8 +111,8 @@ class ExploreState implements GameState {
     return ExploreState.staticName;
   }
 
-  update(timeElapsedS: number, input: GameInput) {
-    if (input.keys.battleView) {
+  update(timeElapsedS: number) {
+    if (readKey("battleView")) {
       this.parent.setState(BattleState.staticName);
       return;
     }
@@ -157,14 +153,14 @@ class BattleState implements GameState {
     return BattleState.staticName;
   }
 
-  update(timeElapsedS: number, input: GameInput) {
-    if (!input.keys.battleView) {
+  update(timeElapsedS: number) {
+    if (!readKey("battleView")) {
       this.parent.setState(ExploreState.staticName);
       return;
     }
 
-    this.tacticsCamera.update(timeElapsedS, input);
-    this.battleController.update(timeElapsedS, input, this.tacticsCamera);
+    this.tacticsCamera.update(timeElapsedS);
+    this.battleController.update(timeElapsedS, this.tacticsCamera);
   }
 
   enter(prevState: GameState | null) {

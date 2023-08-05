@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import GameController from "./GameController";
+import { setupKeyboardEventListeners } from "./GameInput";
 
 const ASPECT_RATIO = 1920 / 1080;
 
@@ -23,6 +24,8 @@ const scene = new THREE.Scene();
 
 const light = new THREE.HemisphereLight(0x000000, 0xffffff, 1.0);
 scene.add(light);
+
+setupKeyboardEventListeners();
 
 const gameController = new GameController(scene, camera);
 

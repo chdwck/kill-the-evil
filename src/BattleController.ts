@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import GameInput from "./GameInput";
+import { readKey } from "./GameInput";
 import { Room } from "./RoomManager";
 import TacticsCamera from "./TacticsCamera";
 import { Vec2, toIndex, addVec2, fromIndex, pathfind, _, equalsVec2 } from "./2d";
@@ -221,14 +221,14 @@ export default class BattleController {
     this.room.teardownBattleField();
   }
 
-  update(timeElapsedS: number, input: GameInput, camera: TacticsCamera) {
+  update(timeElapsedS: number, camera: TacticsCamera) {
     updateAllAnimations(timeElapsedS);
 
     if (!this.acceptPlayerInput) {
       this.setSelectedCell(undefined);
     }
 
-    if (this.acceptPlayerInput && input.keys.space) {
+    if (this.acceptPlayerInput && readKey("space")) {
       this.acceptPlayerInput = false;
       this.addMoveBattleAction(heroId, this.selectedCell);
       return;
@@ -242,55 +242,55 @@ export default class BattleController {
     let delta: Vec2 = [0, 0];
 
     if (camera.deg.value >= 315 || camera.deg.value <= 45) {
-      if (input.keys.forward) {
+      if (readKey("forward")) {
         delta[1] = 1;
       }
-      if (input.keys.backward) {
+      if (readKey("backward")) {
         delta[1] = -1;
       }
-      if (input.keys.left) {
+      if (readKey("left")) {
         delta[0] = 1;
       }
-      if (input.keys.right) {
+      if (readKey("right")) {
         delta[0] = -1;
       }
     } else if (camera.deg.value > 45 && camera.deg.value <= 135) {
-      if (input.keys.forward) {
+      if (readKey("forward")) {
         delta[0] = -1;
       }
-      if (input.keys.backward) {
+      if (readKey("backward")) {
         delta[0] = 1;
       }
-      if (input.keys.left) {
+      if (readKey("left")) {
         delta[1] = 1;
       }
-      if (input.keys.right) {
+      if (readKey("right")) {
         delta[1] = -1;
       }
     } else if (camera.deg.value > 135 && camera.deg.value <= 225) {
-      if (input.keys.forward) {
+      if (readKey("forward")) {
         delta[1] = -1;
       }
-      if (input.keys.backward) {
+      if (readKey("backward")) {
         delta[1] = 1;
       }
-      if (input.keys.left) {
+      if (readKey("left")) {
         delta[0] = -1;
       }
-      if (input.keys.right) {
+      if (readKey("right")) {
         delta[0] = 1;
       }
     } else if (camera.deg.value > 225 && camera.deg.value <= 315) {
-      if (input.keys.forward) {
+      if (readKey("forward")) {
         delta[0] = 1;
       }
-      if (input.keys.backward) {
+      if (readKey("backward")) {
         delta[0] = -1;
       }
-      if (input.keys.left) {
+      if (readKey("left")) {
         delta[1] = -1;
       }
-      if (input.keys.right) {
+      if (readKey("right")) {
         delta[1] = 1;
       }
     }

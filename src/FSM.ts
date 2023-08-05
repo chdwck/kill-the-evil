@@ -1,14 +1,14 @@
-export interface State<TProxy, TInput> {
-  parent: FSM<TProxy, TInput>;
+export interface State<TProxy> {
+  parent: FSM<TProxy>;
   name: string;
-  update(timeElapsed: number, input: TInput): void;
-  enter(state: State<TProxy, TInput> | null): void;
+  update(timeElapsed: number): void;
+  enter(state: State<TProxy> | null): void;
   exit(): void;
 }
 
-export default class FSM<TProxy, TInput> {
-  states: Record<string, State<TProxy, TInput>>;
-  currentState: State<TProxy, TInput> | null;
+export default class FSM<TProxy> {
+  states: Record<string, State<TProxy>>;
+  currentState: State<TProxy> | null;
   proxy: TProxy;
 
   constructor(proxy: TProxy) {
@@ -33,9 +33,9 @@ export default class FSM<TProxy, TInput> {
     state.enter(prevState);
   } 
 
-  update(timeElapsed: number, input: TInput) {
+  update(timeElapsed: number) {
     if (this.currentState) {
-      this.currentState.update(timeElapsed, input);
+      this.currentState.update(timeElapsed);
     }
   }
 }

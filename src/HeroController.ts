@@ -2,7 +2,7 @@ import * as THREE from "three";
 
 import FSM, { type State } from "./FSM";
 import { GameControllerProxy } from "./GameController";
-import GameInput from "./GameInput";
+import { readKey } from "./GameInput";
 import { getAnimationController, getThreeObj, heroId } from "./entities";
 
 type Animation = {
@@ -41,7 +41,7 @@ export default class HeroController {
   }
 
   update(timeInSeconds: number) {
-    this.fsm.update(timeInSeconds, this.proxy.input);
+    this.fsm.update(timeInSeconds);
 
     const velocity = this.velocity;
     const frameDeleceration = new THREE.Vector3(
@@ -63,11 +63,11 @@ export default class HeroController {
     const r = controlObject.quaternion.clone();
 
     const acc = this.acceleration.clone();
-    if (this.proxy.input.keys.backward) {
+    if (readKey("backward")) {
       acc.multiplyScalar(0.5); // slow down when walking backwards
     }
 
-    if (this.proxy.input.keys.shift) {
+    if (readKey("shift")) {
       acc.multiplyScalar(2.0); // speed up to run
     }
 
@@ -75,15 +75,15 @@ export default class HeroController {
       acc.multiplyScalar(0.0); // kill acceleration and dance!
     }
 
-    if (this.proxy.input.keys.forward) {
+    if (readKey("forward")) {
       velocity.z += acc.z * timeInSeconds;
     }
 
-    if (this.proxy.input.keys.backward) {
+    if (readKey("backward")) {
       velocity.z -= acc.z * timeInSeconds;
     }
 
-    if (this.proxy.input.keys.left) {
+    if (readKey("left")) {
       a.set(0, 1, 0);
       quat.setFromAxisAngle(
         a,
@@ -92,7 +92,7 @@ export default class HeroController {
       r.multiply(quat);
     }
 
-    if (this.proxy.input.keys.right) {
+    if (readKey("right")) {
       a.set(0, 1, 0);
       quat.setFromAxisAngle(
         a,
@@ -123,8 +123,8 @@ export default class HeroController {
   }
 }
 
-type HeroState = State<HeroControllerProxy, GameInput>;
-class HeroFSM extends FSM<HeroControllerProxy, GameInput> {
+type HeroState = State<HeroControllerProxy>;
+class HeroFSM extends FSM<HeroControllerProxy> {
   constructor(proxy: HeroControllerProxy) {
     super(proxy);
     this.states = {
@@ -182,7 +182,7 @@ class DanceState implements HeroState {
 
   exit() {}
 
-  update(_timeElapsed: number, _input: GameInput) {}
+  update(_timeElapsed: number) {}
 }
 
 class IdleState implements HeroState {
@@ -214,12 +214,12 @@ class IdleState implements HeroState {
 
   exit() {}
 
-  update(_timeElapsed: number, input: GameInput) {
-    if (input.keys.forward) {
+  update(_timeElapsed: number) {
+    if (readKey("forward")) {
       this.parent.setState(WalkState.staticName);
-    } else if (input.keys.backward) {
+    } else if (readKey("backward")) {
       this.parent.setState(WalkBackState.staticName);
-    } else if (input.keys.space) {
+    } else if (readKey("space")) {
       this.parent.setState(DanceState.staticName);
     }
   }
@@ -256,9 +256,9 @@ class WalkBackState implements HeroState {
 
   exit() {}
 
-  update(_timeElpased: number, input: GameInput) {
-    if (input.keys.forward) {
-      if (input.keys.shift) {
+  update(_timeElpased: number) {
+    if (readKey("forward")) {
+      if (readKey("shift")) {
         this.parent.setState("run");
       } else {
         this.parent.setState("walk");
@@ -266,7 +266,7 @@ class WalkBackState implements HeroState {
       return;
     }
 
-    if (input.keys.backward) {
+    if (readKey("backward")) {
       return;
     }
 
@@ -311,15 +311,15 @@ class WalkState implements HeroState {
 
   exit() {}
 
-  update(_timeElpased: number, input: GameInput) {
-    if (input.keys.forward) {
-      if (input.keys.shift) {
+  update(_timeElpased: number) {
+    if (readKey("forward")) {
+      if (readKey("shift")) {
         this.parent.setState("run");
       }
       return;
     }
 
-    if (input.keys.backward) {
+    if (readKey("backward")) {
       this.parent.setState(WalkBackState.staticName);
       return;
     }
@@ -365,15 +365,15 @@ class RunState implements HeroState {
 
   exit() {}
 
-  update(_timeElpased: number, input: GameInput) {
-    if (input.keys.forward) {
-      if (!input.keys.shift) {
+  update(_timeElpased: number) {
+    if (readKey("forward")) {
+      if (!readKey("shift")) {
         this.parent.setState("walk");
       }
       return;
     }
 
-    if (input.keys.backward) {
+    if (readKey("backward")) {
       this.parent.setState(WalkBackState.staticName);
       return;
     }

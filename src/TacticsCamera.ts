@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { Room, WALL_HEIGHT } from "./RoomManager";
-import GameInput from "./GameInput";
+import { readKey } from "./GameInput";
 
 class Degree {
   value: number;
@@ -81,20 +81,20 @@ export default class TacticsCamera {
     return idealLookAt;
   }
 
-  update(timeElapsedS: number, input: GameInput) {
-    if (input.keys.zoomIn) {
+  update(timeElapsedS: number) {
+    if (readKey("zoomIn")) {
       this.zoom.zoomIn();
     }
 
-    if (input.keys.zoomOut) {
+    if (readKey("zoomOut")) {
       this.zoom.zoomOut();
     }
 
-    if (input.keys.panLeft) {
+    if (readKey("panLeft")) {
       this.deg.increment();
     }
 
-    if (input.keys.panRight) {
+    if (readKey("panRight")) {
       this.deg.decrement();
     }
 
