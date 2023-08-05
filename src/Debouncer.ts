@@ -2,31 +2,37 @@ export type DebouncerDatum = {
   ts: number;
   hits: number;
 };
-export class Debouncer {
+
+type DebouncerCache = {
   data: Record<string, DebouncerDatum>;
   releaseAfterMs: number;
+};
 
-  constructor(releaseAfterMs: number) {
-    this.releaseAfterMs = releaseAfterMs;
-    this.data = {};
+export function createDebouncerCache(releaseAfterMs: number): DebouncerCache {
+  return {
+    data: {},
+    releaseAfterMs,
+  };
+}
+
+export function checkDebouncerCache(
+  cache: DebouncerCache,
+  key: string,
+): boolean {
+  const datum = cache.data[key];
+  const now = Date.now();
+  if (datum === undefined) {
+    cache.data[key] = { ts: now, hits: 1 };
+    return true;
+  }
+  const diff = now - datum.ts;
+  if (diff >= (cache.releaseAfterMs / datum.hits) * 15) {
+    cache.data[key].ts = now;
+    cache.data[key].hits = 1;
+    return true;
   }
 
-  canExecute(key: string): boolean {
-    const datum = this.data[key];
-    const now = Date.now();
-    if (datum === undefined) {
-      this.data[key] = { ts: now, hits: 1 };
-      return true;
-    }
-    const diff = now - datum.ts;
-    if (diff >= (this.releaseAfterMs / datum.hits) * 15) {
-      this.data[key].ts = now;
-      this.data[key].hits = 1;
-      return true;
-    }
+  cache.data[key].hits += 1;
 
-    this.data[key].hits += 1;
-
-    return false;
-  }
+  return false;
 }

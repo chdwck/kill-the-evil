@@ -3,8 +3,8 @@ import GameInput from "./GameInput";
 import { Room } from "./RoomManager";
 import TacticsCamera from "./TacticsCamera";
 import { Vec2, toIndex, addVec2, fromIndex, pathfind, _, equalsVec2 } from "./2d";
-import { Debouncer } from "./Debouncer";
 import { GameEntity, getAnimationController, getEntity, getThreeObj, heroId, updateAllAnimations } from "./entities";
+import { checkDebouncerCache, createDebouncerCache } from "./debouncer";
 
 class Move {
   threeObj: THREE.Group;
@@ -35,10 +35,11 @@ class Move {
   }
 }
 
+const inputDebouncerCache = createDebouncerCache(200);
+
 export default class BattleController {
   room: Room;
   selectedCell: Vec2;
-  inputDebouncer: Debouncer;
 
   battleField: string[] = [];
   turnOrder: string[] = [];
@@ -53,7 +54,6 @@ export default class BattleController {
     this.room = room;
     this.scene = scene;
     this.selectedCell = [0, 0];
-    this.inputDebouncer = new Debouncer(200);
   }
 
   getCombatantPos(id: string): Vec2 {
@@ -295,19 +295,19 @@ export default class BattleController {
       }
     }
 
-    if (delta[0] < 0 && !this.inputDebouncer.canExecute("-x")) {
+    if (delta[0] < 0 && !checkDebouncerCache(inputDebouncerCache, "-x")) {
       delta[0] = 0;
     }
 
-    if (delta[0] > 0 && !this.inputDebouncer.canExecute("+x")) {
+    if (delta[0] > 0 && !checkDebouncerCache(inputDebouncerCache, "+x")) {
       delta[0] = 0;
     }
 
-    if (delta[1] < 0 && !this.inputDebouncer.canExecute("-y")) {
+    if (delta[1] < 0 && !checkDebouncerCache(inputDebouncerCache, "-y")) {
       delta[1] = 0;
     }
 
-    if (delta[1] > 0 && !this.inputDebouncer.canExecute("+y")) {
+    if (delta[1] > 0 && !checkDebouncerCache(inputDebouncerCache, "+y")) {
       delta[1] = 0;
     }
     this.setSelectedCell(addVec2(this.selectedCell, delta));
