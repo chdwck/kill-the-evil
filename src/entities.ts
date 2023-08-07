@@ -7,6 +7,7 @@ type Weapon = {
   name: string;
   damageMult: number;
   attackRange: number;
+  apCost: number;
 };
 
 const SKELETON = "SKELETON";
@@ -20,10 +21,10 @@ type ThreeObjLoader = (
 
 export type GameEntity = {
   id: string;
-  health: number;
-  moveRange: number;
+  baseHealth: number;
   isEnemy: boolean;
   baseAttack: number;
+  baseAP: number;
   weapon: Weapon;
   threeObjLoaderKey: ThreeObjLoaderKey;
 };
@@ -42,15 +43,16 @@ const fists: Weapon = {
   name: "fists",
   damageMult: 1,
   attackRange: 1,
+  apCost: 2,
 };
 
 export const heroId = "h";
 export function createHero(): GameEntity {
   return {
     id: heroId,
-    health: 50,
-    moveRange: 4,
+    baseHealth: 50,
     isEnemy: false,
+    baseAP: 10,
     baseAttack: 1,
     weapon: fists,
     threeObjLoaderKey: HERO,
@@ -72,9 +74,9 @@ export function createEntityState() {
 export function createSkeleton(idSuffix: string): GameEntity {
   return {
     id: `skel_${idSuffix}`,
-    health: 10,
+    baseHealth: 10,
     baseAttack: 1,
-    moveRange: 4,
+    baseAP: 5,
     weapon: fists,
     isEnemy: true,
     threeObjLoaderKey: SKELETON,

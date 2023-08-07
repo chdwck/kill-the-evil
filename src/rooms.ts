@@ -108,7 +108,6 @@ export function renderRoom(
     wall.rotation.x = Math.PI / -2;
     wall.position.z = WALL_HEIGHT / 2;
     wall.position.y = floorHeight / -2;
-    console.log(wallStart, wallLen);
     wall.position.x = (floorWidth - wallLen) / -2 + wallStart;
     floor.add(wall);
   });

@@ -1,7 +1,5 @@
-import { GameEntity } from "./entities";
-import { Room, getCellXY } from "./rooms";
+import { type Room } from "./rooms";
 
-export const E = "E"; // Enemy slot
 export const W = "w"; // wall
 export const _ = "_"; // Nothing
 
@@ -13,14 +11,6 @@ export function equalsVec2(base: Vec2, other: Vec2) {
 
 export function addVec2(base: Vec2, other: Vec2): Vec2 {
   return [base[0] + other[0], base[1] + other[1]];
-}
-
-export function fromIndex(idx: number, width: number): Vec2 {
-  return [Math.floor(idx / width), idx % width];
-}
-
-export function toIndex(pos: Vec2, width: number) {
-  return pos[1] * width + (pos[0] % width);
 }
 
 function stepTowards(start: Vec2, end: Vec2): Vec2 {
@@ -37,6 +27,12 @@ const dirs: Vec2[] = [
   [0, -1],
   [1, -1],
 ];
+
+export function inRange(from: Vec2, to: Vec2, dist: number): boolean {
+  const aSq = (from[0] - to[0]) ** 2;
+  const bSq = (from[1] - to[1]) ** 2;
+  return Math.sqrt(aSq + bSq) <= dist;
+}
 
 function getPrefferedDirectionIndices(start: Vec2, end: Vec2): number[] {
   const delta = stepTowards(start, end);
@@ -69,7 +65,8 @@ function walkPath(
   end: Vec2,
   seen: boolean[][],
   path: Vec2[],
-  range: number,
+  pathMax: number = -1,
+  minDistToTarget: number = 0,
 ): boolean {
   let [x, y] = curr;
   if (x < 0 || x >= layout[0].length || y < 0 || y >= layout.length) {
@@ -92,7 +89,7 @@ function walkPath(
   seen[y][x] = true;
   path.push(curr);
 
-  if (path.length === range) {
+  if (path.length === pathMax || inRange(curr, end, minDistToTarget)) {
     return true;
   }
 
@@ -100,7 +97,16 @@ function walkPath(
 
   for (let i = 0; i < dirIndices.length; i++) {
     const next = addVec2(curr, dirs[dirIndices[i]]);
-    const walkRes = walkPath(layout, start, next, end, seen, path, range);
+    const walkRes = walkPath(
+      layout,
+      start,
+      next,
+      end,
+      seen,
+      path,
+      pathMax,
+      minDistToTarget,
+    );
     if (walkRes) {
       return true;
     }
@@ -111,7 +117,13 @@ function walkPath(
   return false;
 }
 
-export function pathfind(room: Room, entity: GameEntity, end: Vec2): Vec2[] {
+export function pathfind(
+  room: Room,
+  start: Vec2,
+  end: Vec2,
+  pathMax: number = -1,
+  minDistToTarget: number = 0,
+): Vec2[] {
   const seen: boolean[][] = [];
   for (let i = 0; i < room.layout.length; i++) {
     seen.push(
@@ -120,8 +132,15 @@ export function pathfind(room: Room, entity: GameEntity, end: Vec2): Vec2[] {
   }
 
   const path: Vec2[] = [];
-  const start = getCellXY(room, entity.id);
-
-  walkPath(room.layout, start, start, end, seen, path, entity.moveRange);
+  walkPath(
+    room.layout,
+    start,
+    start,
+    end,
+    seen,
+    path,
+    pathMax,
+    minDistToTarget,
+  );
   return path;
 }

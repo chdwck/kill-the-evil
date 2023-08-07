@@ -25,11 +25,13 @@ import {
   HeroAnimationState,
 } from "./heroExploration";
 import {
+    BattleState,
   addHeroToBattlefield,
   battle,
   createBattleState,
   tickBattleState,
 } from "./battle";
+import { initBattleUI, syncBattleUI } from "./ui";
 
 const ASPECT_RATIO = 1920 / 1080;
 
@@ -82,10 +84,12 @@ async function main() {
   const heroVelocity = new THREE.Vector3(0, 0, 0);
   let heroAnimationState: HeroAnimationState = heroAnimationStates.idle;
 
-  const battleState = createBattleState(scene, entityState, entryRoom);
+  let battleState : BattleState;
   function switchToBattleState() {
+    battleState = createBattleState(scene, entityState, entryRoom);
     addHeroToBattlefield(scene, battleState, entityState);
     renderBattlefield(scene, entryRoom);
+    initBattleUI(battleState);
     battle(scene, battleState, entityState);
     gameState = gameStates.battle;
   }
@@ -133,6 +137,8 @@ async function main() {
         tacticsCameraState,
         timeElapsedS,
       );
+
+      syncBattleUI(battleState)
     }
 
     updateAllAnimations(entityState, timeElapsedS);

@@ -9,7 +9,7 @@ import {
   worldToXY,
   xYToWorld,
 } from "./rooms";
-import { Vec2, addVec2, pathfind, _, equalsVec2 } from "./2d";
+import { Vec2, addVec2, pathfind, _, equalsVec2, inRange } from "./2d";
 import {
   EntityState,
   GameEntity,
@@ -22,13 +22,26 @@ import { checkDebouncerCache, createDebouncerCache } from "./debouncer";
 import { TacticsCameraState } from "./TacticsCamera";
 import { GameInputState } from "./GameInput";
 
-type BattleState = {
+function minmax(min: number, max: number, value: number): number {
+  if (value < min) {
+    return min;
+  } else if (value > max) {
+    return max;
+  }
+
+  return value;
+}
+
+export type BattleState = {
   waitingOnPlayerInput: boolean;
   turnOrder: GameEntity[];
   turnIdx: number;
   cursor: Vec2;
   room: Room;
   actions: Move[];
+  entityAP: Record<string, number>;
+  currentActionAPCost: number;
+  entityHealth: Record<string, number>;
 };
 
 type Move = {
@@ -49,6 +62,13 @@ export function createBattleState(
     throw new Error("Hero is not registered.");
   }
   const turnOrder = [hero].concat(room.enemies);
+  const entityAP: Record<string, number> = {};
+  const entityHealth: Record<string, number> = {};
+  for (let i = 0; i < turnOrder.length; i++) {
+    const entity = turnOrder[i];
+    entityAP[entity.id] = entity.baseAP;
+    entityHealth[entity.id] = entity.baseHealth;
+  }
   return {
     waitingOnPlayerInput: false,
     turnOrder,
@@ -56,6 +76,9 @@ export function createBattleState(
     cursor: [0, 0],
     room,
     actions: [],
+    entityAP,
+    currentActionAPCost: 0,
+    entityHealth,
   };
 }
 
@@ -94,7 +117,32 @@ export function battle(
     return;
   }
 
-  moveCombatant(scene, state, entityState, combatant.id, heroXY);
+  const combatantXY = getCellXY(state.room, combatant.id);
+  const combatantAP = state.entityAP[combatant.id];
+  if (combatantAP > 0 && !inRange(combatantXY, heroXY, combatant.weapon.attackRange)) {
+    moveCombatant(scene, state, entityState, combatant.id, combatantXY, heroXY);
+  }
+}
+
+function updateEntityAp(
+  state: BattleState,
+  entityState: EntityState,
+  entityId: string,
+  delta: number,
+) {
+  const entity = getEntity(entityState, entityId);
+  if (!entity) {
+    return;
+  }
+  let ap = state.entityAP[entityId] + delta;
+  if (ap < 0) {
+    ap = 0;
+  }
+  if (ap > entity.baseAP) {
+    ap = entity.baseAP;
+  }
+
+  state.entityAP[entityId] = ap;
 }
 
 function setCursor(
@@ -127,7 +175,11 @@ function setCursor(
     return;
   }
 
-  const path = pathfind(state.room, hero, nextCursor);
+  const heroXY = getCellXY(state.room, hero.id);
+  const currentAp = state.entityAP[hero.id];
+  const path = pathfind(state.room, heroXY, nextCursor, currentAp);
+
+  state.currentActionAPCost = minmax(0, currentAp, path.length);
   path.forEach((point) => updateCellFill(scene, point, true));
   state.cursor = nextCursor;
   const cellInPath = equalsVec2(path[path.length - 1], state.cursor);
@@ -140,7 +192,8 @@ function moveCombatant(
   state: BattleState,
   entityState: EntityState,
   entityId: string,
-  dest: Vec2,
+  from: Vec2,
+  to: Vec2,
 ) {
   const entity = getEntity(entityState, entityId);
   const entityThreeObj = getThreeObj(scene, entityId);
@@ -149,16 +202,17 @@ function moveCombatant(
     return;
   }
 
-  const path = pathfind(state.room, entity, dest);
+  const currentAp = state.entityAP[entity.id];
+  const path = pathfind(
+    state.room,
+    from,
+    to,
+    currentAp,
+    entity.weapon.attackRange,
+  );
 
-  if (path.length <= 1) {
-    state.turnIdx = (state.turnIdx + 1) % state.turnOrder.length;
-    battle(scene, state, entityState);
-    return;
-  }
-
-  const entityXY = getCellXY(state.room, entityId);
-  updateCell(state.room, entityXY);
+  updateEntityAp(state, entityState, entityId, -path.length);
+  updateCell(state.room, from);
   updateCell(state.room, path[path.length - 1], entityId);
 
   const walkAction = animationController.animations["walk"].action;
@@ -225,8 +279,10 @@ export function tickBattleState(
   timeElapsedS: number,
 ) {
   if (state.waitingOnPlayerInput && inputState.space) {
+    state.currentActionAPCost = 0;
     state.waitingOnPlayerInput = false;
-    moveCombatant(scene, state, entityState, heroId, state.cursor);
+    const heroXY = getCellXY(state.room, heroId);
+    moveCombatant(scene, state, entityState, heroId, heroXY, state.cursor);
     setCursor(scene, state, entityState, undefined);
     return;
   }
