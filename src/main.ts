@@ -1,46 +1,155 @@
 import * as THREE from "three";
-import GameController from "./GameController";
-import { setupKeyboardEventListeners } from "./GameInput";
+import { createGameInputState, setupKeyboardEventListeners } from "./GameInput";
+import {
+  createEntityState,
+  createHero,
+  loadThreeObj,
+  registerEntity,
+  updateAllAnimations,
+} from "./entities";
+import {
+  createEntryRoom,
+  renderBattlefield,
+  renderRoom,
+  teardownBattlefield,
+} from "./rooms";
+import { createTacticsCameraState, tickTacticsCamera } from "./TacticsCamera";
+import {
+  createThirdPersonCameraState,
+  tickThirdPersonCameraFollow,
+} from "./ThirdPersonCamera";
+import {
+  updateHeroPosition,
+  updateHeroExploreAnimations,
+  heroAnimationStates,
+  HeroAnimationState,
+} from "./heroExploration";
+import {
+  addHeroToBattlefield,
+  battle,
+  createBattleState,
+  tickBattleState,
+} from "./battle";
 
 const ASPECT_RATIO = 1920 / 1080;
 
-const width = window.innerWidth;
-const height = width / ASPECT_RATIO;
-const canvas = document.createElement("canvas");
-canvas.width = width;
-canvas.height = height;
-document.body.appendChild(canvas);
+const gameStates = {
+  explore: "explore",
+  battle: "battle",
+} as const;
 
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+type GameState = keyof typeof gameStates;
 
-const fov = 60;
-const near = 1.0;
-const far = 1000.0;
-const camera = new THREE.PerspectiveCamera(fov, ASPECT_RATIO, near, far);
+async function main() {
+  const width = window.innerWidth;
+  const height = width / ASPECT_RATIO;
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  document.body.appendChild(canvas);
 
-const scene = new THREE.Scene();
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-const light = new THREE.HemisphereLight(0x000000, 0xffffff, 1.0);
-scene.add(light);
+  const fov = 60;
+  const near = 1.0;
+  const far = 1000.0;
+  const camera = new THREE.PerspectiveCamera(fov, ASPECT_RATIO, near, far);
 
-setupKeyboardEventListeners();
+  const scene = new THREE.Scene();
 
-const gameController = new GameController(scene, camera);
+  const light = new THREE.HemisphereLight(0x000000, 0xffffff, 1.0);
+  scene.add(light);
 
-let previousRaf: number | undefined;
-function raf() {
-  requestAnimationFrame((t: number) => {
-    if (previousRaf === undefined) {
-      previousRaf = t;
-    }
-    raf();
+  const inputState = createGameInputState();
+  setupKeyboardEventListeners(inputState);
+
+  const entityState = createEntityState();
+
+  const hero = registerEntity(entityState, createHero());
+  const heroThreeObj = await loadThreeObj(scene, entityState, hero);
+
+  const entryRoom = createEntryRoom(entityState, new THREE.Vector3(0, 0, 0));
+  // TODO: May need to make this async
+  renderRoom(scene, entityState, entryRoom);
+
+  let gameState: GameState = gameStates.explore;
+
+  const tacticsCameraState = createTacticsCameraState(camera, entryRoom);
+  const thirdPersonCameraState = createThirdPersonCameraState();
+
+  const heroVelocity = new THREE.Vector3(0, 0, 0);
+  let heroAnimationState: HeroAnimationState = heroAnimationStates.idle;
+
+  const battleState = createBattleState(scene, entityState, entryRoom);
+  function switchToBattleState() {
+    addHeroToBattlefield(scene, battleState, entityState);
+    renderBattlefield(scene, entryRoom);
+    battle(scene, battleState, entityState);
+    gameState = gameStates.battle;
+  }
+  function update(timeElapsedS: number) {
     renderer.render(scene, camera);
-    gameController.update((t - previousRaf) / 1000);
-    previousRaf = t;
-  });
-}
-gameController.init().then(() => {
+
+    if (gameState === gameStates.explore) {
+      if (inputState.battleView) {
+        switchToBattleState();
+        return;
+      }
+
+      updateHeroPosition(scene, heroVelocity, inputState, timeElapsedS);
+      heroAnimationState = updateHeroExploreAnimations(
+        heroAnimationState,
+        entityState,
+        inputState,
+      );
+      tickThirdPersonCameraFollow(
+        thirdPersonCameraState,
+        camera,
+        heroThreeObj,
+        timeElapsedS,
+      );
+    } else if (gameState === gameStates.battle) {
+      if (!inputState.battleView) {
+        teardownBattlefield(scene, entryRoom);
+        gameState = gameStates.explore;
+        return;
+      }
+
+      tickTacticsCamera(
+        tacticsCameraState,
+        inputState,
+        camera,
+        entryRoom,
+        timeElapsedS,
+      );
+
+      tickBattleState(
+        scene,
+        battleState,
+        entityState,
+        inputState,
+        tacticsCameraState,
+        timeElapsedS,
+      );
+    }
+
+    updateAllAnimations(entityState, timeElapsedS);
+  }
+
+  let previousRaf: number | undefined;
+  function raf() {
+    requestAnimationFrame((t: number) => {
+      if (previousRaf === undefined) {
+        previousRaf = t;
+      }
+      raf();
+      update((t - previousRaf) / 1000);
+      previousRaf = t;
+    });
+  }
   raf();
-});
+}
+
+main();

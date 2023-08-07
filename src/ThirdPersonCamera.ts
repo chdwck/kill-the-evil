@@ -1,43 +1,35 @@
 import * as THREE from "three";
-import { getThreeObj, heroId } from "./entities";
 
-export default class ThirdPersonCamera {
-  camera: THREE.PerspectiveCamera;
+type ThirdPersonCameraState = {
   currentPosition: THREE.Vector3;
   currentLookAt: THREE.Vector3;
-  hero: THREE.Group;
+};
 
-  constructor(camera: THREE.PerspectiveCamera, scene: THREE.Scene) {
-    this.camera = camera;
-    this.hero = getThreeObj(scene, heroId)!;
+export function createThirdPersonCameraState() {
+  return {
+    currentPosition: new THREE.Vector3(),
+    currentLookAt: new THREE.Vector3(),
+  };
+}
 
-    this.currentPosition = new THREE.Vector3();
-    this.currentLookAt = new THREE.Vector3();
-  }
+export function tickThirdPersonCameraFollow(
+  state: ThirdPersonCameraState,
+  camera: THREE.PerspectiveCamera,
+  target: THREE.Group,
+  timeElapsedS: number,
+) {
+  const idealOffset = new THREE.Vector3(-1.5, 1.5, -3.0);
+  idealOffset.applyQuaternion(target.quaternion);
+  idealOffset.add(target.position);
 
-  calculateIdealOffset(): THREE.Vector3 {
-    const idealOffset = new THREE.Vector3(-1.5, 1.5, -3.0);
-    idealOffset.applyQuaternion(this.hero.quaternion);
-    idealOffset.add(this.hero.position);
-    return idealOffset;
-  }
+  const idealLookAt = new THREE.Vector3(0, 10, 50);
+  idealLookAt.applyQuaternion(target.quaternion);
+  idealLookAt.add(target.position);
 
-  calculateIdealLookAt(): THREE.Vector3 {
-    const idealLookAt = new THREE.Vector3(0, 10, 50);
-    idealLookAt.applyQuaternion(this.hero.quaternion);
-    idealLookAt.add(this.hero.position);
-    return idealLookAt;
-  }
+  const t = 1.25 - Math.pow(0.001, timeElapsedS);
+  state.currentPosition.lerp(idealOffset, t);
+  state.currentLookAt.lerp(idealLookAt, t);
 
-  update(timeElapsedS: number) {
-    const idealOffset = this.calculateIdealOffset();
-    const idealLookAt = this.calculateIdealLookAt();
-
-    const t = 1.25 - Math.pow(0.001, timeElapsedS);
-    this.currentPosition.lerp(idealOffset, t);
-    this.currentLookAt.lerp(idealLookAt, t);
-
-    this.camera.position.copy(this.currentPosition);
-    this.camera.lookAt(idealLookAt);
-  }
+  camera.position.copy(state.currentPosition);
+  camera.lookAt(idealLookAt);
 }

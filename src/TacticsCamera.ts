@@ -1,116 +1,101 @@
 import * as THREE from "three";
-import { Room, WALL_HEIGHT } from "./RoomManager";
-import { readKey } from "./GameInput";
+import { Room, WALL_HEIGHT, getWorldDimensions } from "./rooms";
+import { GameInputState } from "./GameInput";
 
-class Degree {
-  value: number;
-  constructor(value: number) {
-    this.value = value % 360;
-  }
-
-  increment() {
-    this.setValue(this.value + 1);
-  }
-
-  decrement() {
-    this.setValue(this.value - 1);
-  }
-
-  setValue(value: number) {
-    if (value < 0) {
-      value = 359
-    }
-    this.value = value % 360;
-  }
-
-  get radians() {
-    return (this.value * Math.PI) / 180;
+function degreeValue(value: number): number {
+  if (value < 0) {
+    return 359;
+  } else {
+    return value % 360;
   }
 }
 
-class Zoom {
-  step: number;
-  value: number;
-  maxZoom: number;
-  minZoom: number;
-
-  constructor(step: number, minZoom: number, maxZoom: number) {
-    this.step = step;
-    this.maxZoom = maxZoom;
-    this.minZoom = minZoom;
-    this.value = (minZoom + maxZoom) / 2;
-  }
-
-  zoomIn() {
-    this.value = Math.max(this.value - this.step, this.minZoom); 
-  }
-
-  zoomOut() {
-    this.value = Math.min(this.value + this.step, this.maxZoom);
-  }
+function getRadians(degree: number): number {
+  return (degree * Math.PI) / 180;
 }
 
-export default class TacticsCamera {
+const ZOOM_STEP = 0.25;
+type ZoomState = {
+  value: number;
+  max: number;
+  min: number;
+};
+
+function createZoomState(min: number, max: number): ZoomState {
+  const value = Math.floor(max - min) / 2;
+  return {
+    value,
+    min,
+    max,
+  };
+}
+
+function zoomOut(zoom: ZoomState) {
+  zoom.value = Math.min(zoom.value + ZOOM_STEP, zoom.max);
+}
+
+function zoomIn(zoom: ZoomState) {
+  zoom.value = Math.max(zoom.value - ZOOM_STEP, zoom.min);
+}
+
+export type TacticsCameraState = {
   currentPosition: THREE.Vector3;
   currentLookAt: THREE.Vector3;
-  camera: THREE.PerspectiveCamera;
-  room: Room;
-  zoom: Zoom;
+  zoom: ZoomState;
   offset: THREE.Vector3;
-  deg: Degree;
+  deg: number;
+};
 
-  constructor(camera: THREE.PerspectiveCamera, room: Room) {
-    this.camera = camera;
-    this.room = room;
+export function createTacticsCameraState(
+  camera: THREE.PerspectiveCamera,
+  room: Room,
+) {
+  const [roomWidth, roomHeight] = getWorldDimensions(room);
+  const offset = new THREE.Vector3(roomWidth / -1.5, WALL_HEIGHT, 0);
+  offset.add(room.position);
+  return {
+    currentPosition: camera.position,
+    currentLookAt: new THREE.Vector3(),
+    zoom: createZoomState(5, Math.max(roomWidth, roomHeight) * 1.5),
+    offset,
+    deg: 0,
+  };
+}
 
-    this.currentPosition = this.camera.position;
-    this.currentLookAt = new THREE.Vector3();
-    this.zoom = new Zoom(0.25, 5, Math.max(this.room.worldWidth, this.room.worldHeight) * 1.5);
-    this.offset = new THREE.Vector3(
-      this.room.worldWidth / -1.5,
-      WALL_HEIGHT,
-      0,
-    );
-    this.offset.add(this.room.position);
-    this.deg = new Degree(0);
+export function tickTacticsCamera(
+  state: TacticsCameraState,
+  input: GameInputState,
+  camera: THREE.PerspectiveCamera,
+  room: Room,
+  timeElapsedS: number,
+) {
+  if (input.zoomIn) {
+    zoomIn(state.zoom);
   }
 
-  calculateIdealLookAt(): THREE.Vector3 {
-    const idealLookAt = new THREE.Vector3(0, WALL_HEIGHT, 0);
-    idealLookAt.add(this.room.position);
-    return idealLookAt;
+  if (input.zoomOut) {
+    zoomOut(state.zoom);
+  }
+  if (input.panLeft) {
+    state.deg = degreeValue(state.deg + 1);
   }
 
-  update(timeElapsedS: number) {
-    if (readKey("zoomIn")) {
-      this.zoom.zoomIn();
-    }
-
-    if (readKey("zoomOut")) {
-      this.zoom.zoomOut();
-    }
-
-    if (readKey("panLeft")) {
-      this.deg.increment();
-    }
-
-    if (readKey("panRight")) {
-      this.deg.decrement();
-    }
-
-    this.offset.x =
-      Math.sin(this.deg.radians) * this.zoom.value + this.room.position.x;
-
-    this.offset.z =
-      Math.cos(this.deg.radians) * -this.zoom.value - this.room.position.z;
-
-    const idealLookAt = this.calculateIdealLookAt();
-
-    const t = 1.0 - Math.pow(0.001, timeElapsedS);
-    this.currentPosition.lerp(this.offset, t);
-    this.currentLookAt.lerp(idealLookAt, t);
-
-    this.camera.position.copy(this.currentPosition);
-    this.camera.lookAt(idealLookAt);
+  if (input.panRight) {
+    state.deg = degreeValue(state.deg - 1);
   }
+
+  const radians = getRadians(state.deg);
+  state.offset.x = Math.sin(radians) * state.zoom.value + room.position.x;
+
+  state.offset.z = Math.cos(radians) * -state.zoom.value - room.position.z;
+
+  const idealLookAt = new THREE.Vector3(0, WALL_HEIGHT, 0);
+  idealLookAt.add(room.position);
+
+  const t = 1.0 - Math.pow(0.001, timeElapsedS);
+  state.currentPosition.lerp(state.offset, t);
+  state.currentLookAt.lerp(idealLookAt, t);
+
+  camera.position.copy(state.currentPosition);
+  camera.lookAt(idealLookAt);
 }

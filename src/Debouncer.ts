@@ -3,7 +3,7 @@ export type DebouncerDatum = {
   hits: number;
 };
 
-type DebouncerCache = {
+export type DebouncerCache = {
   data: Record<string, DebouncerDatum>;
   releaseAfterMs: number;
 };

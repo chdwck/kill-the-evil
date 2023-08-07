@@ -1,4 +1,19 @@
-const keys = {
+export type GameInputState = {
+  forward: boolean;
+  backward: boolean;
+  left: boolean;
+  right: boolean;
+  panLeft: boolean;
+  panRight: boolean;
+  zoomIn: boolean;
+  zoomOut: boolean;
+  space: boolean;
+  shift: boolean;
+  battleView: boolean;
+}
+
+export function createGameInputState() : GameInputState {
+ return {
   forward: false,
   backward: false,
   left: false,
@@ -10,91 +25,86 @@ const keys = {
   space: false,
   shift: false,
   battleView: false,
-};
+  };
+}
 
-type InputKey = keyof typeof keys;
-
-function onKeydown(e: KeyboardEvent) {
+function onKeydown(e: KeyboardEvent, state: GameInputState) {
   switch (e.key.toLowerCase()) {
     case "q":
-      keys.battleView = false;
+      state.battleView = false;
       break;
     case "b":
-      keys.battleView = true;
+      state.battleView = true;
       break;
     case "w":
-      keys.forward = true;
+      state.forward = true;
       break;
     case "a":
-      keys.left = true;
+      state.left = true;
       break;
     case "s": // s
-      keys.backward = true;
+      state.backward = true;
       break;
     case "d": // d
-      keys.right = true;
+      state.right = true;
       break;
     case "shift":
-      keys.shift = true;
+      state.shift = true;
       break;
     case " ":
-      keys.space = true;
+      state.space = true;
       break;
     case "arrowup":
-      keys.zoomIn = true;
+      state.zoomIn = true;
       break;
     case "arrowleft":
-      keys.panLeft = true;
+      state.panLeft = true;
       break;
     case "arrowdown":
-      keys.zoomOut = true;
+      state.zoomOut = true;
       break;
     case "arrowright":
-      keys.panRight = true;
+      state.panRight = true;
       break;
   }
 }
 
-function onKeyup(e: KeyboardEvent) {
+function onKeyup(e: KeyboardEvent, state: GameInputState) {
   switch (e.key.toLowerCase()) {
     case "w":
-      keys.forward = false;
+      state.forward = false;
       break;
     case "a":
-      keys.left = false;
+      state.left = false;
       break;
     case "s": // s
-      keys.backward = false;
+      state.backward = false;
       break;
     case "d": // d
-      keys.right = false;
+      state.right = false;
       break;
     case "shift":
-      keys.shift = false;
+      state.shift = false;
       break;
     case " ":
-      keys.space = false;
+      state.space = false;
       break;
     case "arrowup":
-      keys.zoomIn = false;
+      state.zoomIn = false;
       break;
     case "arrowleft":
-      keys.panLeft = false;
+      state.panLeft = false;
       break;
     case "arrowdown":
-      keys.zoomOut = false;
+      state.zoomOut = false;
       break;
     case "arrowright":
-      keys.panRight = false;
+      state.panRight = false;
       break;
   }
 }
 
-export function setupKeyboardEventListeners() {
-  window.addEventListener("keydown", onKeydown, false);
-  window.addEventListener("keyup", onKeyup, false);
-}
-
-export function readKey(key: InputKey): boolean {
-  return keys[key];
+export function setupKeyboardEventListeners(state: GameInputState) {
+  window.addEventListener("keydown", e => onKeydown(e, state), false);
+  window.addEventListener("keyup", e => onKeyup(e, state), false);
 }

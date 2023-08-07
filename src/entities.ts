@@ -14,6 +14,7 @@ const HERO = "HERO";
 type ThreeObjLoaderKey = typeof HERO | typeof SKELETON;
 type ThreeObjLoader = (
   scene: THREE.Scene,
+  state: EntityState,
   entity: GameEntity,
 ) => Promise<THREE.Group>;
 
@@ -44,21 +45,29 @@ const fists: Weapon = {
 };
 
 export const heroId = "h";
-let hero: GameEntity = {
-  id: heroId,
-  health: 50,
-  moveRange: 4,
-  isEnemy: false,
-  baseAttack: 1,
-  weapon: fists,
-  threeObjLoaderKey: HERO,
+export function createHero(): GameEntity {
+  return {
+    id: heroId,
+    health: 50,
+    moveRange: 4,
+    isEnemy: false,
+    baseAttack: 1,
+    weapon: fists,
+    threeObjLoaderKey: HERO,
+  };
+}
+
+export type EntityState = {
+  entities: Record<string, GameEntity>;
+  animationControllers: Record<string, AnimationController>;
 };
 
-const entities: Record<string, GameEntity> = {
-  [heroId]: hero,
-};
-
-const animationControllers: Record<string, AnimationController> = {};
+export function createEntityState() {
+  return {
+    entities: {},
+    animationControllers: {},
+  };
+}
 
 export function createSkeleton(idSuffix: string): GameEntity {
   return {
@@ -72,19 +81,26 @@ export function createSkeleton(idSuffix: string): GameEntity {
   };
 }
 
-export function registerEntity(entity: GameEntity): GameEntity {
-  entities[entity.id] = entity;
+export function registerEntity(
+  state: EntityState,
+  entity: GameEntity,
+): GameEntity {
+  state.entities[entity.id] = entity;
   return entity;
 }
 
-export function getEntity(id: string): GameEntity | undefined {
-  return entities[id];
+export function getEntity(
+  state: EntityState,
+  id: string,
+): GameEntity | undefined {
+  return state.entities[id];
 }
 
 export function getAnimationController(
+  state: EntityState,
   id: string,
 ): AnimationController | undefined {
-  return animationControllers[id];
+  return state.animationControllers[id];
 }
 
 export function getThreeObj(
@@ -94,10 +110,10 @@ export function getThreeObj(
   return scene.getObjectByName(id) as THREE.Group;
 }
 
-export function updateAllAnimations(timeElapsedS: number) {
-  const keys = Object.keys(entities);
+export function updateAllAnimations(state: EntityState, timeElapsedS: number) {
+  const keys = Object.keys(state.animationControllers);
   for (let i = 0; i < keys.length; i++) {
-    animationControllers[keys[i]].mixer.update(timeElapsedS);
+    state.animationControllers[keys[i]].mixer.update(timeElapsedS);
   }
 }
 
@@ -115,7 +131,11 @@ async function addAnimation(
 }
 
 const threeObjLoaders: Record<ThreeObjLoaderKey, ThreeObjLoader> = {
-  async [HERO](scene: THREE.Scene, entity: GameEntity): Promise<THREE.Group> {
+  async [HERO](
+    scene: THREE.Scene,
+    state: EntityState,
+    entity: GameEntity,
+  ): Promise<THREE.Group> {
     loader.setPath("./assets/content/Characters/");
     const fbx = await loader.loadAsync("DungeonCrawler_Character.fbx");
     fbx.scale.setScalar(0.01);
@@ -136,7 +156,7 @@ const threeObjLoaders: Record<ThreeObjLoaderKey, ThreeObjLoader> = {
     promises.push(addAnimation("punchcombo", mixer, animations));
     promises.push(addAnimation("zombiehit", mixer, animations));
     await Promise.all(promises);
-    animationControllers[entity.id] = {
+   state.animationControllers[entity.id] = {
       mixer,
       animations,
     };
@@ -147,6 +167,7 @@ const threeObjLoaders: Record<ThreeObjLoaderKey, ThreeObjLoader> = {
 
   async [SKELETON](
     scene: THREE.Scene,
+    state: EntityState,
     entity: GameEntity,
   ): Promise<THREE.Group> {
     loader.setPath("./assets/skeleton/");
@@ -166,20 +187,20 @@ const threeObjLoaders: Record<ThreeObjLoaderKey, ThreeObjLoader> = {
     promises.push(addAnimation("punch", mixer, animations));
     promises.push(addAnimation("walk", mixer, animations));
     await Promise.all(promises);
-    animationControllers[entity.id] = {
+    state.animationControllers[entity.id] = {
       mixer,
       animations,
     };
     animations["idle"].action.play();
     mixer.update(0);
-    console.log(animationControllers);
     return fbx;
   },
 };
 
 export function loadThreeObj(
   scene: THREE.Scene,
+  state: EntityState,
   entity: GameEntity,
 ): Promise<THREE.Group> {
-  return threeObjLoaders[entity.threeObjLoaderKey](scene, entity);
+  return threeObjLoaders[entity.threeObjLoaderKey](scene, state, entity);
 }
