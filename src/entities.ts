@@ -4,9 +4,10 @@ import { FBXLoader } from "three/examples/jsm/loaders/FBXLoader";
 const loader = new FBXLoader();
 
 type Weapon = {
-  name: string;
+  type: WeaponType;
   damageMult: number;
   attackRange: number;
+  attackWidth: number;
   apCost: number;
 };
 
@@ -19,8 +20,15 @@ type ThreeObjLoader = (
   entity: GameEntity,
 ) => Promise<THREE.Group>;
 
+const gameEntityTypes = {
+  hero: "hero",
+  skeleton: "skeleton",
+} as const;
+type GameEntityType = keyof typeof gameEntityTypes;
+
 export type GameEntity = {
   id: string;
+  type: GameEntityType;
   baseHealth: number;
   isEnemy: boolean;
   baseAttack: number;
@@ -29,7 +37,7 @@ export type GameEntity = {
   threeObjLoaderKey: ThreeObjLoaderKey;
 };
 
-type Animation = {
+export type Animation = {
   clip: THREE.AnimationClip;
   action: THREE.AnimationAction;
 };
@@ -39,17 +47,71 @@ type AnimationController = {
   animations: Record<string, Animation>;
 };
 
+const weaponTypes = {
+  fists: "fists",
+} as const;
+type WeaponType = keyof typeof weaponTypes;
 const fists: Weapon = {
-  name: "fists",
+  type: weaponTypes.fists,
   damageMult: 1,
   attackRange: 1,
+  attackWidth: 0,
   apCost: 2,
 };
+
+type WeaponActionTable = Record<WeaponType, Record<GameEntityType, string>>;
+const weaponActionsTable: WeaponActionTable = {
+  fists: {
+    hero: "punchcombo",
+    skeleton: "punch",
+  },
+};
+
+const weaponTargetActionsTable: WeaponActionTable = {
+  fists: {
+    hero: "zombiehit",
+    skeleton: "hithard",
+  },
+};
+
+type WeaponActionAnimations = [Animation?, Animation?];
+export function getAnimationsForWeapon(
+  state: EntityState,
+  entityId: string,
+  targetEntityId?: string,
+): WeaponActionAnimations {
+  const entity = getEntity(state, entityId);
+  const animationController = getAnimationController(state, entityId);
+  if (!entity || !animationController) {
+    return [];
+  }
+  const weaponType = entity.weapon.type;
+  const animationName = weaponActionsTable[weaponType][entity.type];
+  const animation = animationController.animations[animationName];
+
+  let targetEntity;
+  let targetAnimationController;
+  if (targetEntityId) {
+    targetEntity = getEntity(state, targetEntityId);
+    targetAnimationController = getAnimationController(state, targetEntityId);
+  }
+  if (!targetEntity || !targetAnimationController) {
+    return [animation];
+  }
+
+  const targetAnimationName =
+    weaponTargetActionsTable[weaponType][targetEntity.type];
+  const targetAnimation =
+    targetAnimationController.animations[targetAnimationName];
+
+  return [animation, targetAnimation];
+}
 
 export const heroId = "h";
 export function createHero(): GameEntity {
   return {
     id: heroId,
+    type: gameEntityTypes.hero,
     baseHealth: 50,
     isEnemy: false,
     baseAP: 10,
@@ -74,6 +136,7 @@ export function createEntityState() {
 export function createSkeleton(idSuffix: string): GameEntity {
   return {
     id: `skel_${idSuffix}`,
+    type: gameEntityTypes.skeleton,
     baseHealth: 10,
     baseAttack: 1,
     baseAP: 5,
@@ -158,7 +221,7 @@ const threeObjLoaders: Record<ThreeObjLoaderKey, ThreeObjLoader> = {
     promises.push(addAnimation("punchcombo", mixer, animations));
     promises.push(addAnimation("zombiehit", mixer, animations));
     await Promise.all(promises);
-   state.animationControllers[entity.id] = {
+    state.animationControllers[entity.id] = {
       mixer,
       animations,
     };

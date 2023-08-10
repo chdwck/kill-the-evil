@@ -1,7 +1,7 @@
 import { type Room } from "./rooms";
 
-export const W = "w"; // wall
-export const _ = "_"; // Nothing
+export const W : string = "w"; // wall
+export const _ : string = "_"; // Nothing
 
 export type Vec2 = [number, number];
 
@@ -13,7 +13,15 @@ export function addVec2(base: Vec2, other: Vec2): Vec2 {
   return [base[0] + other[0], base[1] + other[1]];
 }
 
-function stepTowards(start: Vec2, end: Vec2): Vec2 {
+export function scaleVec2(base: Vec2, scale: number): Vec2 {
+  return [base[0] * scale, base[1] * scale];
+}
+
+export function inverseVec2(base: Vec2): Vec2 {
+  return [base[1], base[0]];
+}
+
+export function getDir(start: Vec2, end: Vec2): Vec2 {
   return [Math.sign(end[0] - start[0]), Math.sign(end[1] - start[1])];
 }
 
@@ -35,7 +43,7 @@ export function inRange(from: Vec2, to: Vec2, dist: number): boolean {
 }
 
 function getPrefferedDirectionIndices(start: Vec2, end: Vec2): number[] {
-  const delta = stepTowards(start, end);
+  const delta = getDir(start, end);
   let i = 0;
   for (; i < dirs.length; i++) {
     if (equalsVec2(delta, dirs[i])) {
@@ -43,10 +51,10 @@ function getPrefferedDirectionIndices(start: Vec2, end: Vec2): number[] {
     }
   }
 
-  const result = [i];
+  const result = [];
   for (let j = 0; j < dirs.length; j++) {
     let mod = j % 2 === 0 ? -1 : 1;
-    let dirIdx = i + mod * j;
+    let dirIdx = i + mod * Math.ceil(j / 2);
     if (dirIdx > dirs.length - 1) {
       dirIdx %= dirs.length;
     } else if (dirIdx < 0) {
@@ -58,6 +66,15 @@ function getPrefferedDirectionIndices(start: Vec2, end: Vec2): number[] {
   return result;
 }
 
+function getCell(layout: string[][], pos: Vec2): string | undefined {
+  const [x,y] = pos;
+  if (x < 0 || x >= layout[0].length || y < 0 || y >= layout.length) {
+    return undefined;
+  }
+
+  return layout[y][x];
+}
+
 function walkPath(
   layout: string[][],
   start: Vec2,
@@ -66,20 +83,22 @@ function walkPath(
   seen: boolean[][],
   path: Vec2[],
   pathMax: number = -1,
-  minDistToTarget: number = 0,
 ): boolean {
   let [x, y] = curr;
-  if (x < 0 || x >= layout[0].length || y < 0 || y >= layout.length) {
-    return false;
-  }
-
-  if (layout[y][x] !== W && layout[y][x] !== _ && !equalsVec2(curr, start)) {
+  const cell = getCell(layout, curr);
+  if (cell === undefined) {
     return false;
   }
 
   if (equalsVec2(curr, end)) {
-    path.push(curr);
+    if (cell === W || cell === _) {
+      path.push(curr);
+    }
     return true;
+  }
+
+  if (cell !== W && cell !== _ && !equalsVec2(curr, start)) {
+    return false;
   }
 
   if (seen[y][x]) {
@@ -89,7 +108,7 @@ function walkPath(
   seen[y][x] = true;
   path.push(curr);
 
-  if (path.length === pathMax || inRange(curr, end, minDistToTarget)) {
+  if (path.length === pathMax) {
     return true;
   }
 
@@ -97,16 +116,11 @@ function walkPath(
 
   for (let i = 0; i < dirIndices.length; i++) {
     const next = addVec2(curr, dirs[dirIndices[i]]);
-    const walkRes = walkPath(
-      layout,
-      start,
-      next,
-      end,
-      seen,
-      path,
-      pathMax,
-      minDistToTarget,
-    );
+    const nextCell = getCell(layout, next)
+    if (nextCell !== W && nextCell !== _ && !equalsVec2(next, end)) {
+      continue;
+    }
+    const walkRes = walkPath(layout, start, next, end, seen, path, pathMax);
     if (walkRes) {
       return true;
     }
@@ -122,7 +136,6 @@ export function pathfind(
   start: Vec2,
   end: Vec2,
   pathMax: number = -1,
-  minDistToTarget: number = 0,
 ): Vec2[] {
   const seen: boolean[][] = [];
   for (let i = 0; i < room.layout.length; i++) {
@@ -132,15 +145,6 @@ export function pathfind(
   }
 
   const path: Vec2[] = [];
-  walkPath(
-    room.layout,
-    start,
-    start,
-    end,
-    seen,
-    path,
-    pathMax,
-    minDistToTarget,
-  );
+  walkPath(room.layout, start, start, end, seen, path, pathMax);
   return path;
 }

@@ -90,7 +90,7 @@ async function main() {
     addHeroToBattlefield(scene, battleState, entityState);
     renderBattlefield(scene, entryRoom);
     initBattleUI(battleState);
-    battle(scene, battleState, entityState);
+    battle(scene, battleState, entityState, 0);
     gameState = gameStates.battle;
   }
   function update(timeElapsedS: number) {

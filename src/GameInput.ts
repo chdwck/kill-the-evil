@@ -10,6 +10,7 @@ export type GameInputState = {
   space: boolean;
   shift: boolean;
   battleView: boolean;
+  attack: boolean;
 }
 
 export function createGameInputState() : GameInputState {
@@ -25,11 +26,15 @@ export function createGameInputState() : GameInputState {
   space: false,
   shift: false,
   battleView: false,
+    attack: false
   };
 }
 
 function onKeydown(e: KeyboardEvent, state: GameInputState) {
   switch (e.key.toLowerCase()) {
+    case "x":
+      state.attack = true;
+      break;
     case "q":
       state.battleView = false;
       break;
@@ -71,6 +76,9 @@ function onKeydown(e: KeyboardEvent, state: GameInputState) {
 
 function onKeyup(e: KeyboardEvent, state: GameInputState) {
   switch (e.key.toLowerCase()) {
+    case "x":
+      state.attack = false;
+      break;
     case "w":
       state.forward = false;
       break;

@@ -49,6 +49,11 @@ export function createEntryRoom(
   };
 }
 
+export function getCell(room: Room, pos: Vec2): string {
+  const [x, y] = pos;
+  return room.layout[y][x];
+}
+
 export function updateCell(room: Room, pos: Vec2, cell: string = _) {
   const [x, y] = pos;
   room.layout[y][x] = cell;
