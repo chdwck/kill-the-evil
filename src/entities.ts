@@ -201,7 +201,7 @@ const threeObjLoaders: Record<ThreeObjLoaderKey, ThreeObjLoader> = {
     state: EntityState,
     entity: GameEntity,
   ): Promise<THREE.Group> {
-    loader.setPath("./assets/content/Characters/");
+    loader.setPath("./content/Characters/");
     const fbx = await loader.loadAsync("DungeonCrawler_Character.fbx");
     fbx.scale.setScalar(0.01);
     fbx.traverse((c) => {
@@ -217,7 +217,6 @@ const threeObjLoaders: Record<ThreeObjLoaderKey, ThreeObjLoader> = {
     promises.push(addAnimation("run", mixer, animations));
     promises.push(addAnimation("walk", mixer, animations));
     promises.push(addAnimation("walkback", mixer, animations));
-    promises.push(addAnimation("dance", mixer, animations));
     promises.push(addAnimation("punchcombo", mixer, animations));
     promises.push(addAnimation("zombiehit", mixer, animations));
     await Promise.all(promises);
@@ -235,7 +234,7 @@ const threeObjLoaders: Record<ThreeObjLoaderKey, ThreeObjLoader> = {
     state: EntityState,
     entity: GameEntity,
   ): Promise<THREE.Group> {
-    loader.setPath("./assets/skeleton/");
+    loader.setPath("./skeleton/");
     const fbx = await loader.loadAsync("skeleton.fbx");
     fbx.scale.setScalar(0.3);
     fbx.traverse((c) => {
