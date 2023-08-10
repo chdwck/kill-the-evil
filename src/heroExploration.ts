@@ -121,9 +121,11 @@ export function updateHeroExploreAnimations(
   const nextAction = animationController.animations[nextState].action;
 
   nextAction.enabled = true;
-  const isWalkToRunOrViceVersa = 
-    prevState === heroAnimationStates.run && nextState === heroAnimationStates.walk ||
-    nextState === heroAnimationStates.run && prevState === heroAnimationStates.walk;
+  const isWalkToRunOrViceVersa =
+    (prevState === heroAnimationStates.run &&
+      nextState === heroAnimationStates.walk) ||
+    (nextState === heroAnimationStates.run &&
+      prevState === heroAnimationStates.walk);
   if (isWalkToRunOrViceVersa) {
     const ratio = nextAction.getClip().duration / prevAction.getClip().duration;
     nextAction.time = prevAction.time * ratio;

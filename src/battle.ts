@@ -14,7 +14,6 @@ import {
   Vec2,
   addVec2,
   pathfind,
-  _,
   equalsVec2,
   inRange,
   scaleVec2,
@@ -547,7 +546,7 @@ export function tickBattleState(
     return;
   }
 
-  let delta: Vec2 = [0, 0];
+  const delta: Vec2 = [0, 0];
 
   if (tacticsCameraState.deg >= 315 || tacticsCameraState.deg <= 45) {
     if (inputState.forward) {

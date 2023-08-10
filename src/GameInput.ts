@@ -11,22 +11,22 @@ export type GameInputState = {
   shift: boolean;
   battleView: boolean;
   attack: boolean;
-}
+};
 
-export function createGameInputState() : GameInputState {
- return {
-  forward: false,
-  backward: false,
-  left: false,
-  right: false,
-  panLeft: false,
-  panRight: false,
-  zoomIn: false,
-  zoomOut: false,
-  space: false,
-  shift: false,
-  battleView: false,
-    attack: false
+export function createGameInputState(): GameInputState {
+  return {
+    forward: false,
+    backward: false,
+    left: false,
+    right: false,
+    panLeft: false,
+    panRight: false,
+    zoomIn: false,
+    zoomOut: false,
+    space: false,
+    shift: false,
+    battleView: false,
+    attack: false,
   };
 }
 
@@ -113,6 +113,6 @@ function onKeyup(e: KeyboardEvent, state: GameInputState) {
 }
 
 export function setupKeyboardEventListeners(state: GameInputState) {
-  window.addEventListener("keydown", e => onKeydown(e, state), false);
-  window.addEventListener("keyup", e => onKeyup(e, state), false);
+  window.addEventListener("keydown", (e) => onKeydown(e, state), false);
+  window.addEventListener("keyup", (e) => onKeyup(e, state), false);
 }
