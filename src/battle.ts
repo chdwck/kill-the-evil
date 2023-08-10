@@ -31,7 +31,7 @@ import {
   getThreeObj,
   heroId,
 } from "./entities";
-import { checkDebouncerCache, createDebouncerCache } from "./debouncer";
+import { checkDebouncerCache, createDebouncerCache } from "./debouncerCache";
 import { TacticsCameraState } from "./TacticsCamera";
 import { GameInputState } from "./GameInput";
 

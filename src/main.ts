@@ -25,7 +25,7 @@ import {
   HeroAnimationState,
 } from "./heroExploration";
 import {
-    BattleState,
+  BattleState,
   addHeroToBattlefield,
   battle,
   createBattleState,
@@ -84,7 +84,7 @@ async function main() {
   const heroVelocity = new THREE.Vector3(0, 0, 0);
   let heroAnimationState: HeroAnimationState = heroAnimationStates.idle;
 
-  let battleState : BattleState;
+  let battleState: BattleState;
   function switchToBattleState() {
     battleState = createBattleState(scene, entityState, entryRoom);
     addHeroToBattlefield(scene, battleState, entityState);
@@ -138,7 +138,7 @@ async function main() {
         timeElapsedS,
       );
 
-      syncBattleUI(battleState)
+      syncBattleUI(battleState);
     }
 
     updateAllAnimations(entityState, timeElapsedS);
