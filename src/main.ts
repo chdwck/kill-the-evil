@@ -126,6 +126,7 @@ async function main() {
         inputState,
         camera,
         entryRoom,
+        heroThreeObj.position,
         timeElapsedS,
       );
 

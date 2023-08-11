@@ -62,7 +62,7 @@ const fists: Weapon = {
 type WeaponActionTable = Record<WeaponType, Record<GameEntityType, string>>;
 const weaponActionsTable: WeaponActionTable = {
   fists: {
-    hero: "punchcombo",
+    hero: "elbow",
     skeleton: "punch",
   },
 };
@@ -74,12 +74,11 @@ const weaponTargetActionsTable: WeaponActionTable = {
   },
 };
 
-type WeaponActionAnimations = [Animation?, Animation?];
 export function getAnimationsForWeapon(
   state: EntityState,
   entityId: string,
-  targetEntityId?: string,
-): WeaponActionAnimations {
+  targetIds: string[],
+): Animation[] {
   const entity = getEntity(state, entityId);
   const animationController = getAnimationController(state, entityId);
   if (!entity || !animationController) {
@@ -89,22 +88,23 @@ export function getAnimationsForWeapon(
   const animationName = weaponActionsTable[weaponType][entity.type];
   const animation = animationController.animations[animationName];
 
-  let targetEntity;
-  let targetAnimationController;
-  if (targetEntityId) {
-    targetEntity = getEntity(state, targetEntityId);
-    targetAnimationController = getAnimationController(state, targetEntityId);
+  const result = [animation];
+  for (let i = 0; i < targetIds.length; i++) {
+    const targetAnimationController = getAnimationController(
+      state,
+      targetIds[i],
+    );
+    const targetEntity = getEntity(state, targetIds[i]);
+    if (!targetAnimationController || !targetEntity) {
+      continue;
+    }
+    const targetAnimation =
+      targetAnimationController.animations[
+        weaponTargetActionsTable[weaponType][targetEntity.type]
+      ];
+    result.push(targetAnimation);
   }
-  if (!targetEntity || !targetAnimationController) {
-    return [animation];
-  }
-
-  const targetAnimationName =
-    weaponTargetActionsTable[weaponType][targetEntity.type];
-  const targetAnimation =
-    targetAnimationController.animations[targetAnimationName];
-
-  return [animation, targetAnimation];
+  return result;
 }
 
 export const heroId = "h";
@@ -217,7 +217,7 @@ const threeObjLoaders: Record<ThreeObjLoaderKey, ThreeObjLoader> = {
     promises.push(addAnimation("run", mixer, animations));
     promises.push(addAnimation("walk", mixer, animations));
     promises.push(addAnimation("walkback", mixer, animations));
-    promises.push(addAnimation("punchcombo", mixer, animations));
+    promises.push(addAnimation("elbow", mixer, animations));
     promises.push(addAnimation("zombiehit", mixer, animations));
     await Promise.all(promises);
     state.animationControllers[entity.id] = {

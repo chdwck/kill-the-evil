@@ -1,3 +1,4 @@
+import { GameEntity } from "./entities";
 import { type Room } from "./rooms";
 
 export const W: string = "w"; // wall
@@ -147,4 +148,29 @@ export function pathfind(
   const path: Vec2[] = [];
   walkPath(room.layout, start, start, end, seen, path, pathMax);
   return path;
+}
+
+export function getAttackArea(start: Vec2, dir: Vec2, entity: GameEntity) {
+  const invertedDir = inverseVec2(dir);
+  const negInvertedDir = scaleVec2(invertedDir, -1);
+
+  const attackArea: Vec2[] = [];
+  const [x, y] = dir;
+  for (let i = 1; i <= entity.weapon.attackRange; i++) {
+    const base = addVec2(start, scaleVec2(dir, i));
+    for (let j = 1; j <= entity.weapon.attackWidth; j++) {
+      if (x === 0 || y === 0) {
+        attackArea.push(addVec2(base, scaleVec2(invertedDir, j)));
+        attackArea.push(addVec2(base, scaleVec2(negInvertedDir, j)));
+        continue;
+      }
+
+      attackArea.push(addVec2(base, [-x * j, 0]));
+      attackArea.push(addVec2(base, [0, -y * j]));
+    }
+
+    attackArea.push(base);
+  }
+
+  return attackArea;
 }

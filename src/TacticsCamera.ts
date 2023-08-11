@@ -67,6 +67,7 @@ export function tickTacticsCamera(
   input: GameInputState,
   camera: THREE.PerspectiveCamera,
   room: Room,
+  lookAt: THREE.Vector3,
   timeElapsedS: number,
 ) {
   if (input.zoomIn) {
@@ -90,7 +91,7 @@ export function tickTacticsCamera(
   state.offset.z = Math.cos(radians) * -state.zoom.value - room.position.z;
 
   const idealLookAt = new THREE.Vector3(0, WALL_HEIGHT, 0);
-  idealLookAt.add(room.position);
+  idealLookAt.add(lookAt);
 
   const t = 1.0 - Math.pow(0.001, timeElapsedS);
   state.currentPosition.lerp(state.offset, t);

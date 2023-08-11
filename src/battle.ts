@@ -16,14 +16,12 @@ import {
   pathfind,
   equalsVec2,
   inRange,
-  scaleVec2,
   getDir,
-  inverseVec2,
+  getAttackArea,
 } from "./2d";
 import {
   EntityState,
   GameEntity,
-  Animation,
   getAnimationController,
   getAnimationsForWeapon,
   getEntity,
@@ -75,11 +73,7 @@ type MoveAction = {
 type AttackAction = {
   type: typeof actionTypes.attack;
   entityId: string;
-  threeObj: THREE.Group;
-  animation: Animation;
-  targetEntityId?: string;
-  targetThreeObj?: THREE.Group;
-  targetAnimation?: Animation;
+  targetEntityIds: string[];
   timeElapsedS: number;
 };
 
@@ -152,8 +146,15 @@ export function battle(
 
   if (!combatant.isEnemy) {
     state.waitingOnPlayerInput = true;
-    setCursor(scene, state, entityState, addVec2(heroXY, [0, 1]));
+    setCursor(scene, state, entityState, heroXY);
     return;
+  }
+
+  const combatantThreeObj = getThreeObj(scene, combatant.id);
+  const heroThreeObj = getThreeObj(scene, heroId);
+
+  if (combatantThreeObj && heroThreeObj) {
+    combatantThreeObj?.lookAt(heroThreeObj?.position);
   }
 
   const combatantXY = getCellXY(state.room, combatant.id);
@@ -246,26 +247,7 @@ function setCursor(
       nextCursor = addVec2(heroXY, dir);
     }
 
-    const invertedDir = inverseVec2(dir);
-    const negInvertedDir = scaleVec2(invertedDir, -1);
-
-    const attackArea: Vec2[] = [];
-    const [x, y] = dir;
-    for (let i = 1; i <= hero.weapon.attackRange; i++) {
-      const base = addVec2(heroXY, scaleVec2(dir, i));
-      for (let j = 1; j <= hero.weapon.attackWidth; j++) {
-        if (x === 0 || y === 0) {
-          attackArea.push(addVec2(base, scaleVec2(invertedDir, j)));
-          attackArea.push(addVec2(base, scaleVec2(negInvertedDir, j)));
-          continue;
-        }
-
-        attackArea.push(addVec2(base, [-x * j, 0]));
-        attackArea.push(addVec2(base, [0, -y * j]));
-      }
-
-      attackArea.push(base);
-    }
+    const attackArea = getAttackArea(heroXY, dir, hero);
 
     attackArea.forEach((point) =>
       updateCellFill(scene, point, true, "nCursor"),
@@ -286,6 +268,10 @@ function setCursor(
     const cursorColor: CellColorKey = cursorInPath ? "pCursor" : "nCursor";
     updateCellFill(scene, nextCursor, true, cursorColor);
     state.cursor = nextCursor;
+  }
+  const heroThreeObj = getThreeObj(scene, heroId);
+  if (heroThreeObj) {
+    heroThreeObj.lookAt(xYToWorld(state.room, state.cursor));
   }
 }
 
@@ -338,48 +324,35 @@ function attack(
   entityState: EntityState,
   entityId: string,
   target: Vec2,
-) {
+): boolean {
   const entity = getEntity(entityState, entityId);
   const entityThreeObj = getThreeObj(scene, entityId);
   const animationController = getAnimationController(entityState, entityId);
   if (!entity || !entityThreeObj || !animationController) {
-    return;
+    return false;
   }
 
   const entityXY = getCellXY(state.room, entityId);
-
-  const path = pathfind(
-    state.room,
-    entityXY,
-    target,
-    entity.weapon.attackRange,
-  );
-  const adjustedTarget = path[path.length - 1];
-  const cell = getCell(state.room, adjustedTarget);
-  const targetThreeObj = getThreeObj(scene, cell);
-
-  const [animation, targetAnimation] = getAnimationsForWeapon(
-    entityState,
-    entityId,
-    cell,
-  );
-
-  if (!animation) {
-    return;
+  const dir = getDir(entityXY, target);
+  const attackArea = getAttackArea(entityXY, dir, entity);
+  const targetIds = [];
+  for (let i = 0; i < attackArea.length; i++) {
+    const cell = getCell(state.room, attackArea[i]);
+    console.log(cell);
+    if (getEntity(entityState, cell)) {
+      targetIds.push(cell);
+    }
   }
 
   const action: AttackAction = {
     type: actionTypes.attack,
     entityId,
-    targetEntityId: cell,
-    threeObj: entityThreeObj,
-    targetThreeObj,
-    animation,
-    targetAnimation,
+    targetEntityIds: targetIds,
     timeElapsedS: 0,
   };
 
   state.actions.push(action);
+  return true;
 }
 
 function tickMoveAction(
@@ -432,54 +405,58 @@ function tickAttackAction(
   attack: AttackAction,
   timeElapsedS: number,
 ) {
+  const animationController = getAnimationController(
+    entityState,
+    attack.entityId,
+  );
+
+  if (!animationController) {
+    state.actions.shift();
+    return;
+  }
+
+  const animations = getAnimationsForWeapon(
+    entityState,
+    attack.entityId,
+    attack.targetEntityIds,
+  );
   if (attack.timeElapsedS === 0) {
-    if (attack.targetThreeObj) {
-      attack.threeObj.lookAt(attack.targetThreeObj.position);
+    if (!animations.length) {
+      state.actions.shift();
+      return;
     }
-
-    attack.animation.action.time = 0.0;
-    attack.animation.action.enabled = true;
-    attack.animation.action.setEffectiveTimeScale(1.0);
-    attack.animation.action.setEffectiveWeight(1.0);
-    attack.animation.action.play();
-
-    if (attack.targetAnimation) {
-      attack.targetAnimation.action.time = 0.0;
-      attack.targetAnimation.action.enabled = true;
-      attack.targetAnimation.action.setEffectiveTimeScale(1.0);
-      attack.targetAnimation.action.setEffectiveWeight(1.0);
-      attack.targetAnimation.action.play();
+    for (let i = 0; i < animations.length; i++) {
+      const animation = animations[i];
+      animation.action.time = 0.0;
+      animation.action.enabled = true;
+      animation.action.setEffectiveTimeScale(1.0);
+      animation.action.setEffectiveWeight(1.0);
+      if (i > 0) {
+        animation.action.setDuration(animations[0].clip.duration);
+      }
+      animation.action.play();
     }
   }
 
   attack.timeElapsedS += timeElapsedS;
+  const isMainAnimationComplete =
+    attack.timeElapsedS >= animations[0].clip.duration;
 
-  if (attack.timeElapsedS > 1) {
-    const animationController = getAnimationController(
-      entityState,
-      attack.entityId,
-    );
-    if (animationController) {
+  const allEntities = [attack.entityId].concat(attack.targetEntityIds);
+  if (isMainAnimationComplete) {
+    for (let i = 0; i < allEntities.length; i++) {
+      const entityId = allEntities[i];
+      const animationController = getAnimationController(entityState, entityId);
+      const animation = animations[i];
+      if (!animationController || !animation) {
+        continue;
+      }
       const idleAction = animationController.animations["idle"].action;
       idleAction.time = 0.0;
       idleAction.enabled = true;
       idleAction.setEffectiveTimeScale(1.0);
       idleAction.setEffectiveWeight(1.0);
-      idleAction.crossFadeFrom(attack.animation.action, 0.5, true);
-      idleAction.play();
-    }
-
-    const targetAnimationController =
-      attack.targetEntityId && attack.targetAnimation
-        ? getAnimationController(entityState, attack.targetEntityId)
-        : undefined;
-    if (targetAnimationController) {
-      const idleAction = targetAnimationController.animations["idle"].action;
-      idleAction.time = 0.0;
-      idleAction.enabled = true;
-      idleAction.setEffectiveTimeScale(1.0);
-      idleAction.setEffectiveWeight(1.0);
-      idleAction.crossFadeFrom(attack.animation.action, 0.5, true);
+      idleAction.crossFadeFrom(animation.action, 0.25, true);
       idleAction.play();
     }
 
@@ -506,7 +483,8 @@ function tickActionState(
   }
 }
 
-const inputDebouncerCache = createDebouncerCache(200);
+const cursorDebouncerCache = createDebouncerCache(200);
+const stateToggleDebouncerCache = createDebouncerCache(1000);
 export function tickBattleState(
   scene: THREE.Scene,
   state: BattleState,
@@ -524,9 +502,12 @@ export function tickBattleState(
   }
 
   const heroXY = getCellXY(state.room, heroId);
-  if (inputState.attack && checkDebouncerCache(inputDebouncerCache, "attack")) {
+  if (
+    inputState.attack &&
+    checkDebouncerCache(stateToggleDebouncerCache, "attack")
+  ) {
     state.isPlayerAttacking = !state.isPlayerAttacking;
-    setCursor(scene, state, entityState, addVec2(heroXY, [0, 1]));
+    setCursor(scene, state, entityState, heroXY);
   }
 
   if (inputState.space) {
@@ -535,11 +516,21 @@ export function tickBattleState(
     }
     state.currentActionAPCost = 0;
     state.waitingOnPlayerInput = false;
+    let success = false;
     if (state.isPlayerAttacking) {
-      attack(scene, state, entityState, heroId, state.cursor);
+      success = attack(scene, state, entityState, heroId, state.cursor);
     } else if (!equalsVec2(heroXY, state.cursor)) {
-      moveCombatant(scene, state, entityState, heroId, heroXY, state.cursor);
-    } else {
+      success = moveCombatant(
+        scene,
+        state,
+        entityState,
+        heroId,
+        heroXY,
+        state.cursor,
+      );
+    }
+
+    if (!success) {
       battle(scene, state, entityState, 1);
     }
     setCursor(scene, state, entityState, undefined);
@@ -602,19 +593,19 @@ export function tickBattleState(
     }
   }
 
-  if (delta[0] < 0 && !checkDebouncerCache(inputDebouncerCache, "-x")) {
+  if (delta[0] < 0 && !checkDebouncerCache(cursorDebouncerCache, "-x")) {
     delta[0] = 0;
   }
 
-  if (delta[0] > 0 && !checkDebouncerCache(inputDebouncerCache, "+x")) {
+  if (delta[0] > 0 && !checkDebouncerCache(cursorDebouncerCache, "+x")) {
     delta[0] = 0;
   }
 
-  if (delta[1] < 0 && !checkDebouncerCache(inputDebouncerCache, "-y")) {
+  if (delta[1] < 0 && !checkDebouncerCache(cursorDebouncerCache, "-y")) {
     delta[1] = 0;
   }
 
-  if (delta[1] > 0 && !checkDebouncerCache(inputDebouncerCache, "+y")) {
+  if (delta[1] > 0 && !checkDebouncerCache(cursorDebouncerCache, "+y")) {
     delta[1] = 0;
   }
   setCursor(scene, state, entityState, addVec2(state.cursor, delta));
