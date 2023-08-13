@@ -1,9 +1,9 @@
 import { type BattleState } from "./battle";
-import { heroId } from "./entities";
+import { GameEntity, gameEntityTypes, heroId } from "./entities";
 
 export const HERO_ACTIONS_UI = "heroactionsui";
 export const AP_COUNTER = "apcounter";
-export function initBattleUI(battleState: BattleState) {
+function createHeroActionsUI(battleState: BattleState) {
   const heroActions = document.createElement("div");
   heroActions.id = HERO_ACTIONS_UI;
   heroActions.style.position = "fixed";
@@ -59,14 +59,116 @@ function createAPDots(battleState: BattleState): HTMLDivElement {
 }
 
 export function syncHeroAPDots(battleState: BattleState) {
-  const heroAP = battleState.entityAP[heroId] - battleState.currentActionAPCost;
+  const start = battleState.entityAP[heroId] - battleState.currentActionAPCost;
+  const end = battleState.entityAP[heroId];
   const apCircles = document.querySelectorAll(".ap-circle");
-  apCircles.forEach((apCircle, i) => {
-    (apCircle as HTMLDivElement).style.background =
-      i < heroAP ? "red" : "transparent";
-  });
+  console.log(start, end);
+  for (let i = 0; i < apCircles.length; i++) {
+    const apCircle = apCircles[i] as HTMLDivElement;
+    if (i >= start && i < end) {
+      apCircle.style.background = "yellow";
+    } else if (i < start) {
+      apCircle.style.background = "red";
+    } else {
+      apCircle.style.background = "transparent";
+    }
+  }
+}
+
+function getEntityThumbnail(entity: GameEntity): string {
+  switch (entity.type) {
+    case gameEntityTypes.hero:
+      return "/thumbnails/hero.png";
+    case gameEntityTypes.skeleton:
+      return "/thumbnails/skele.png";
+  }
+}
+
+const TURNBOX_ID = "turnbox";
+
+function entityTurnboxId(entity: GameEntity) {
+  return `turnbox-${entity.id}`;
+}
+
+const entityBoxWidthPx = 40;
+const entityBoxGapPx = 10;
+function createTurnBoxUI(battleState: BattleState) {
+  const turnBox = document.createElement("div");
+  turnBox.id = TURNBOX_ID;
+  turnBox.style.position = "fixed";
+  turnBox.style.top = "0px";
+  turnBox.style.left = "0px";
+  turnBox.style.right = "0px";
+  turnBox.style.height = "50px";
+  turnBox.style.display = "flex";
+  turnBox.style.justifyContent = "center";
+  const turnboxCentered = document.createElement("div");
+  turnboxCentered.style.position = "relative";
+  const turnBoxWidthPx = entityBoxWidthPx * battleState.turnOrder.length;
+  turnboxCentered.style.width = `${turnBoxWidthPx}px`;
+  turnBox.appendChild(turnboxCentered);
+
+  for (let i = 0; i < battleState.turnOrder.length; i++) {
+    const entity = battleState.turnOrder[i];
+    const entityBox = document.createElement("div");
+    entityBox.style.position = "absolute";
+    const left = entityBoxWidthPx * i + entityBoxGapPx * i;
+    entityBox.style.left = `${left}px`;
+    entityBox.style.top = "0px";
+    entityBox.style.bottom = "0px";
+    entityBox.style.height = "50px";
+    entityBox.style.width = `${entityBoxWidthPx}px`;
+    entityBox.style.color = "white";
+    entityBox.id = entityTurnboxId(entity);
+    entityBox.title = entity.id;
+    entityBox.style.background = `url(${getEntityThumbnail(entity)}`;
+    entityBox.style.backgroundSize = "cover";
+    entityBox.style.transition = "left";
+    entityBox.style.transitionDuration = "200ms";
+
+    const healthBar = document.createElement("div");
+    healthBar.style.position = "absolute";
+    healthBar.style.left = "0px";
+    healthBar.style.bottom = "0px";
+    healthBar.style.height = "5px";
+    healthBar.style.background = "red";
+    healthBar.style.width = "100%";
+
+    entityBox.appendChild(healthBar);
+    turnboxCentered.appendChild(entityBox);
+  }
+
+  document.body.appendChild(turnBox);
+}
+
+function syncTurnbox(battleState: BattleState) {
+  for (let i = 0; i < battleState.turnOrder.length; i++) {
+    const truIdx = (battleState.turnIdx + i) % battleState.turnOrder.length;
+    const entity = battleState.turnOrder[truIdx];
+    const entityHealth = battleState.entityHealth[entity.id];
+    const entityBox = document.getElementById(entityTurnboxId(entity));
+    if (!entityBox) {
+      continue;
+    }
+    const left = entityBoxWidthPx * i + entityBoxGapPx * i;
+    entityBox.style.left = `${left}px`;
+    const widthPrcnt =
+      100 - ((entity.baseHealth - entityHealth) / entity.baseHealth) * 100;
+    console.log(entity.id, entityHealth, widthPrcnt)
+    const healthBar = entityBox.querySelector("div");
+    if (!healthBar) {
+      continue;
+    }
+    healthBar.style.width = `${widthPrcnt}%`;
+  }
+}
+
+export function initBattleUI(battleState: BattleState) {
+  createHeroActionsUI(battleState);
+  createTurnBoxUI(battleState);
 }
 
 export function syncBattleUI(battleState: BattleState) {
   syncHeroAPDots(battleState);
+  syncTurnbox(battleState);
 }

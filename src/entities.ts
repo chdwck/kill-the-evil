@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { FBXLoader } from "three/examples/jsm/loaders/FBXLoader";
+import { BattleState } from "./battle";
 
 const loader = new FBXLoader();
 
@@ -20,7 +21,7 @@ type ThreeObjLoader = (
   entity: GameEntity,
 ) => Promise<THREE.Group>;
 
-const gameEntityTypes = {
+export const gameEntityTypes = {
   hero: "hero",
   skeleton: "skeleton",
 } as const;
@@ -74,11 +75,18 @@ const weaponTargetActionsTable: WeaponActionTable = {
   },
 };
 
-export function getAnimationsForWeapon(
+export type EntityAnimation = {
+  entity: GameEntity;
+  animation: Animation;
+  controller: AnimationController;
+};
+
+export function getEntityAnimationsForWeapon(
   state: EntityState,
+  battleState: BattleState,
   entityId: string,
   targetIds: string[],
-): Animation[] {
+): EntityAnimation[] {
   const entity = getEntity(state, entityId);
   const animationController = getAnimationController(state, entityId);
   if (!entity || !animationController) {
@@ -87,22 +95,33 @@ export function getAnimationsForWeapon(
   const weaponType = entity.weapon.type;
   const animationName = weaponActionsTable[weaponType][entity.type];
   const animation = animationController.animations[animationName];
+  const entityAnimation = {
+    entity,
+    animation,
+    controller: animationController
+  };
 
-  const result = [animation];
+  const result = [entityAnimation];
   for (let i = 0; i < targetIds.length; i++) {
-    const targetAnimationController = getAnimationController(
-      state,
-      targetIds[i],
-    );
-    const targetEntity = getEntity(state, targetIds[i]);
-    if (!targetAnimationController || !targetEntity) {
+    const tAnimationController = getAnimationController(state, targetIds[i]);
+    const tEntity = getEntity(state, targetIds[i]);
+    if (!tAnimationController || !tEntity) {
       continue;
     }
-    const targetAnimation =
-      targetAnimationController.animations[
-        weaponTargetActionsTable[weaponType][targetEntity.type]
-      ];
-    result.push(targetAnimation);
+    const tEntityHealth = battleState.entityHealth[tEntity.id];
+    let animation;
+    if (tEntityHealth <= 0) {
+      animation = tAnimationController.animations.die;
+    } else {
+      const animationName = weaponTargetActionsTable[weaponType][tEntity.type];
+      animation = tAnimationController.animations[animationName];
+    }
+
+    result.push({
+      entity: tEntity,
+      animation,
+      controller: tAnimationController
+    });
   }
   return result;
 }
@@ -115,7 +134,7 @@ export function createHero(): GameEntity {
     baseHealth: 50,
     isEnemy: false,
     baseAP: 10,
-    baseAttack: 1,
+    baseAttack: 5,
     weapon: fists,
     threeObjLoaderKey: HERO,
   };
@@ -138,7 +157,7 @@ export function createSkeleton(idSuffix: string): GameEntity {
     id: `skel_${idSuffix}`,
     type: gameEntityTypes.skeleton,
     baseHealth: 10,
-    baseAttack: 1,
+    baseAttack: 5,
     baseAP: 5,
     weapon: fists,
     isEnemy: true,
@@ -219,6 +238,7 @@ const threeObjLoaders: Record<ThreeObjLoaderKey, ThreeObjLoader> = {
     promises.push(addAnimation("walkback", mixer, animations));
     promises.push(addAnimation("elbow", mixer, animations));
     promises.push(addAnimation("zombiehit", mixer, animations));
+    promises.push(addAnimation("die", mixer, animations));
     await Promise.all(promises);
     state.animationControllers[entity.id] = {
       mixer,
@@ -250,6 +270,7 @@ const threeObjLoaders: Record<ThreeObjLoaderKey, ThreeObjLoader> = {
     promises.push(addAnimation("hithard", mixer, animations));
     promises.push(addAnimation("punch", mixer, animations));
     promises.push(addAnimation("walk", mixer, animations));
+    promises.push(addAnimation("die", mixer, animations));
     await Promise.all(promises);
     state.animationControllers[entity.id] = {
       mixer,

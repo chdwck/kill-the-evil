@@ -23,14 +23,16 @@ import {
   EntityState,
   GameEntity,
   getAnimationController,
-  getAnimationsForWeapon,
+  getEntityAnimationsForWeapon,
   getEntity,
   getThreeObj,
   heroId,
+  EntityAnimation,
 } from "./entities";
 import { checkDebouncerCache, createDebouncerCache } from "./debouncerCache";
 import { TacticsCameraState } from "./TacticsCamera";
 import { GameInputState } from "./GameInput";
+import { Queue, createQueue, deque, enqueue, peek } from "./fifoQueue";
 
 function minmax(min: number, max: number, value: number): number {
   if (value < min) {
@@ -47,7 +49,7 @@ export type BattleState = {
   turnIdx: number;
   cursor: Vec2;
   room: Room;
-  actions: Action[];
+  actions: Queue<Action>;
   entityAP: Record<string, number>;
   entityHealth: Record<string, number>;
 
@@ -55,7 +57,20 @@ export type BattleState = {
   waitingOnPlayerInput: boolean;
   currentActionAPCost: number;
   isPlayerAttacking: boolean;
+  log: Queue<Log>;
 };
+
+const logItemTypes = {
+  damageRecieved: "damageRecieved",
+} as const;
+
+type DamageRecievedLog = {
+  type: typeof logItemTypes.damageRecieved;
+  targetEntityId: string;
+  damageRecieved: number;
+};
+
+type Log = DamageRecievedLog;
 
 const actionTypes = {
   move: "move",
@@ -73,7 +88,7 @@ type MoveAction = {
 type AttackAction = {
   type: typeof actionTypes.attack;
   entityId: string;
-  targetEntityIds: string[];
+  entityAnimations: EntityAnimation[];
   timeElapsedS: number;
 };
 
@@ -102,7 +117,8 @@ export function createBattleState(
     turnIdx: 0,
     cursor: [0, 0],
     room,
-    actions: [],
+    actions: createQueue(),
+    log: createQueue(),
     entityAP,
     entityHealth,
     waitingOnPlayerInput: false,
@@ -142,7 +158,9 @@ export function battle(
   const combatant = state.turnOrder[state.turnIdx];
   const heroXY = getCellXY(state.room, heroId);
 
-  updateEntityAp(state, entityState, combatant.id, 2);
+  if (turnDelta > 0) {
+    updateEntityAp(state, entityState, combatant.id, 2);
+  }
 
   if (!combatant.isEnemy) {
     state.waitingOnPlayerInput = true;
@@ -159,10 +177,22 @@ export function battle(
 
   const combatantXY = getCellXY(state.room, combatant.id);
   const combatantAP = state.entityAP[combatant.id];
-  if (
-    combatantAP > 0 &&
-    !inRange(combatantXY, heroXY, combatant.weapon.attackRange)
-  ) {
+
+  const inAttackRange = inRange(
+    combatantXY,
+    heroXY,
+    combatant.weapon.attackRange,
+  );
+  const hasAttackAp = combatantAP >= combatant.weapon.apCost;
+  if (inAttackRange && hasAttackAp) {
+    const succeeded = attack(scene, state, entityState, combatant.id, heroXY);
+    if (succeeded) {
+      return;
+    }
+    return;
+  }
+
+  if (combatantAP > 0) {
     const succeeded = moveCombatant(
       scene,
       state,
@@ -208,9 +238,7 @@ function setCursor(
 ) {
   const heroXY = getCellXY(state.room, heroId);
   if (!cursor) {
-    state.cursor = heroXY;
     clearAllCellFills(scene, state.room);
-    updateCellFill(scene, heroXY, true, "nCursor");
     return;
   }
 
@@ -255,7 +283,7 @@ function setCursor(
 
     state.cursor = nextCursor;
   } else {
-    const path = pathfind(state.room, heroXY, nextCursor, currentAP);
+    const path = pathfind(state.room, heroXY, nextCursor, currentAP + 1);
     if (path.length < 1) {
       state.currentActionAPCost = 0;
       updateCellFill(scene, heroXY, true, "nCursor");
@@ -278,7 +306,7 @@ function setCursor(
 function hasEnoughAP(state: BattleState, entityId: string, apCost?: number) {
   const currentAP = state.entityAP[entityId];
   const cost = apCost ?? state.currentActionAPCost;
-  return currentAP > cost;
+  return currentAP >= cost;
 }
 
 function moveCombatant(
@@ -296,12 +324,12 @@ function moveCombatant(
   }
 
   const currentAp = state.entityAP[entity.id];
-  const path = pathfind(state.room, from, to, currentAp);
+  const path = pathfind(state.room, from, to, currentAp + 1);
   if (path.length < 2) {
     return false;
   }
 
-  updateEntityAp(state, entityState, entityId, -path.length);
+  updateEntityAp(state, entityState, entityId, -(path.length - 1));
   updateCell(state.room, from);
   updateCell(state.room, path[path.length - 1], entityId);
 
@@ -314,7 +342,7 @@ function moveCombatant(
     curve: new THREE.CatmullRomCurve3(worldPath),
   };
 
-  state.actions.push(action);
+  enqueue(state.actions, action);
   return true;
 }
 
@@ -337,22 +365,105 @@ function attack(
   const attackArea = getAttackArea(entityXY, dir, entity);
   const targetIds = [];
   for (let i = 0; i < attackArea.length; i++) {
-    const cell = getCell(state.room, attackArea[i]);
-    console.log(cell);
-    if (getEntity(entityState, cell)) {
-      targetIds.push(cell);
+    const targetId = getCell(state.room, attackArea[i]);
+    if (!getEntity(entityState, targetId)) {
+      continue;
     }
+    targetIds.push(targetId);
+    const damage =
+      Math.round(Math.random() * entity.weapon.damageMult * entity.baseAttack) +
+      entity.baseAttack;
+
+    state.entityHealth[targetId] = Math.max(0, state.entityHealth[targetId] - damage);
+    enqueue(state.log, {
+      type: logItemTypes.damageRecieved,
+      damageRecieved: damage,
+      targetEntityId: entityId,
+    });
   }
+
+  const entityAnimations = getEntityAnimationsForWeapon(
+    entityState,
+    state,
+    entityId,
+    targetIds,
+  );
 
   const action: AttackAction = {
     type: actionTypes.attack,
     entityId,
-    targetEntityIds: targetIds,
+    entityAnimations,
     timeElapsedS: 0,
   };
 
-  state.actions.push(action);
+  enqueue(state.actions, action);
+  updateEntityAp(state, entityState, entityId, -entity.weapon.apCost);
   return true;
+}
+
+function tickAttackAction(
+  scene: THREE.Scene,
+  state: BattleState,
+  entityState: EntityState,
+  attack: AttackAction,
+  timeElapsedS: number,
+) {
+  const attackingEntity = getEntity(entityState, attack.entityId);
+  const animationController = getAnimationController(
+    entityState,
+    attack.entityId,
+  );
+
+  if (!animationController || !attackingEntity) {
+    deque(state.actions);
+    return;
+  }
+
+  const attackDuration = 2.0;
+  if (attack.timeElapsedS === 0) {
+    const attackerThreeObj = getThreeObj(scene, attack.entityId);
+    if (!attack.entityAnimations.length || !attackerThreeObj) {
+      deque(state.actions);
+      return;
+    }
+    for (let i = 0; i < attack.entityAnimations.length; i++) {
+      const entityAnimation = attack.entityAnimations[i];
+      if (entityAnimation.entity.id !== attack.entityId) {
+        const threeObj = getThreeObj(scene, entityAnimation.entity.id);
+        if (threeObj) {
+          threeObj.lookAt(attackerThreeObj.position);
+        }
+      }
+      entityAnimation.animation.action.time = 0.0;
+      entityAnimation.animation.action.enabled = true;
+      entityAnimation.animation.action.setEffectiveWeight(10.0);
+      entityAnimation.animation.action.clampWhenFinished = true;
+      entityAnimation.animation.action.reset();
+      entityAnimation.animation.action.setLoop(THREE.LoopOnce, 1);
+      entityAnimation.animation.action.setDuration(attackDuration);
+      entityAnimation.animation.action.play();
+    }
+  }
+
+  attack.timeElapsedS += timeElapsedS;
+  if (attack.timeElapsedS >= attackDuration) {
+    for (let i = 0; i < attack.entityAnimations.length; i++) {
+      const entityAnimation = attack.entityAnimations[i];
+      if (state.entityHealth[entityAnimation.entity.id] < 1) {
+        continue;
+      }
+
+      const idleAction = entityAnimation.controller.animations["idle"].action;
+      idleAction.time = 0.0;
+      idleAction.enabled = true;
+      idleAction.setEffectiveTimeScale(1.0);
+      idleAction.setEffectiveWeight(1.0);
+      idleAction.crossFadeFrom(entityAnimation.animation.action, 0.25, true);
+      idleAction.play();
+    }
+
+    deque(state.actions);
+  }
 }
 
 function tickMoveAction(
@@ -367,7 +478,7 @@ function tickMoveAction(
   );
 
   if (!animationController) {
-    state.actions.shift();
+    deque(state.actions);
     return;
   }
 
@@ -395,72 +506,7 @@ function tickMoveAction(
     idleAction.setEffectiveWeight(1.0);
     idleAction.crossFadeFrom(walkAction, 0.5, true);
     idleAction.play();
-    state.actions.shift();
-  }
-}
-
-function tickAttackAction(
-  state: BattleState,
-  entityState: EntityState,
-  attack: AttackAction,
-  timeElapsedS: number,
-) {
-  const animationController = getAnimationController(
-    entityState,
-    attack.entityId,
-  );
-
-  if (!animationController) {
-    state.actions.shift();
-    return;
-  }
-
-  const animations = getAnimationsForWeapon(
-    entityState,
-    attack.entityId,
-    attack.targetEntityIds,
-  );
-  if (attack.timeElapsedS === 0) {
-    if (!animations.length) {
-      state.actions.shift();
-      return;
-    }
-    for (let i = 0; i < animations.length; i++) {
-      const animation = animations[i];
-      animation.action.time = 0.0;
-      animation.action.enabled = true;
-      animation.action.setEffectiveTimeScale(1.0);
-      animation.action.setEffectiveWeight(1.0);
-      if (i > 0) {
-        animation.action.setDuration(animations[0].clip.duration);
-      }
-      animation.action.play();
-    }
-  }
-
-  attack.timeElapsedS += timeElapsedS;
-  const isMainAnimationComplete =
-    attack.timeElapsedS >= animations[0].clip.duration;
-
-  const allEntities = [attack.entityId].concat(attack.targetEntityIds);
-  if (isMainAnimationComplete) {
-    for (let i = 0; i < allEntities.length; i++) {
-      const entityId = allEntities[i];
-      const animationController = getAnimationController(entityState, entityId);
-      const animation = animations[i];
-      if (!animationController || !animation) {
-        continue;
-      }
-      const idleAction = animationController.animations["idle"].action;
-      idleAction.time = 0.0;
-      idleAction.enabled = true;
-      idleAction.setEffectiveTimeScale(1.0);
-      idleAction.setEffectiveWeight(1.0);
-      idleAction.crossFadeFrom(animation.action, 0.25, true);
-      idleAction.play();
-    }
-
-    state.actions.shift();
+    deque(state.actions);
   }
 }
 
@@ -470,16 +516,23 @@ function tickActionState(
   entityState: EntityState,
   timeElapsedS: number,
 ) {
-  const action = state.actions[0];
+  const action = peek(state.actions);
+  if (!action) {
+    battle(scene, state, entityState, 1);
+    return;
+  }
+
   if (action.type === actionTypes.move) {
     tickMoveAction(state, entityState, action, timeElapsedS);
   } else if (action.type === actionTypes.attack) {
-    tickAttackAction(state, entityState, action, timeElapsedS);
+    tickAttackAction(scene, state, entityState, action, timeElapsedS);
   }
 
   if (state.actions.length < 1) {
-    state.actions.shift();
-    battle(scene, state, entityState, 1);
+    const entityId = state.turnOrder[state.turnIdx].id;
+    const entityAP = state.entityAP[entityId];
+    const turnDelta = entityAP > 0 ? 0 : 1;
+    battle(scene, state, entityState, turnDelta);
   }
 }
 
@@ -493,11 +546,12 @@ export function tickBattleState(
   tacticsCameraState: TacticsCameraState,
   timeElapsedS: number,
 ) {
+  if (state.actions.length) {
+    tickActionState(scene, state, entityState, timeElapsedS);
+    return;
+  }
+
   if (!state.waitingOnPlayerInput) {
-    if (state.actions.length) {
-      tickActionState(scene, state, entityState, timeElapsedS);
-      return;
-    }
     return;
   }
 
@@ -508,6 +562,12 @@ export function tickBattleState(
   ) {
     state.isPlayerAttacking = !state.isPlayerAttacking;
     setCursor(scene, state, entityState, heroXY);
+  }
+
+  if (inputState.pass) {
+    state.waitingOnPlayerInput = false;
+    battle(scene, state, entityState, 1);
+    return;
   }
 
   if (inputState.space) {
@@ -531,7 +591,7 @@ export function tickBattleState(
     }
 
     if (!success) {
-      battle(scene, state, entityState, 1);
+      battle(scene, state, entityState, 0);
     }
     setCursor(scene, state, entityState, undefined);
     return;
@@ -608,5 +668,7 @@ export function tickBattleState(
   if (delta[1] > 0 && !checkDebouncerCache(cursorDebouncerCache, "+y")) {
     delta[1] = 0;
   }
-  setCursor(scene, state, entityState, addVec2(state.cursor, delta));
+  if (!equalsVec2(delta, [0, 0])) {
+    setCursor(scene, state, entityState, addVec2(state.cursor, delta));
+  }
 }
