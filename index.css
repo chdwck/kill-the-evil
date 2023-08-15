@@ -1,0 +1,70 @@
+body, canvas {
+ margin: 0 auto;
+ background: black;
+}
+
+canvas {
+ display: block;
+}
+
+/* UI */
+#turnbox-container {
+  position: fixed;
+  top: 0px;
+  left: 0px;
+  right: 0px;
+  height: 50px;
+  display: flex;
+  justify-content: center;
+}
+
+#turnbox {
+  position: relative;
+}
+
+.entityBox {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  height: 50px;
+  color: white;
+  transition: 'left';
+  transition-duration: 200ms;
+}
+
+.healthBar {
+  position: absolute;
+  left: 0px;
+  bottom: 0px;
+  height: 5px;
+  background: red;
+  width: 100%;
+}
+
+.skeletonThumbnail {
+  background: url('/thumbnails/skele.png');
+  background-size: cover;
+  background-repeat: no-repeat;
+}
+
+.heroThumbnail {
+  background: url('/thumbnails/hero.png');
+  background-size: cover;
+  background-repeat: no-repeat;
+}
+
+/* Animations */
+.fadeOut {
+  animation-name: fade-out;
+  animation-duration: 2s;
+  animation-fill-mode: forwards;
+}
+
+@keyframes fade-out {
+ from {
+  opacity: 1;
+ }
+ to {
+  opacity: 0;
+ }
+}

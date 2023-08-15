@@ -52,6 +52,7 @@ export type BattleState = {
   actions: Queue<Action>;
   entityAP: Record<string, number>;
   entityHealth: Record<string, number>;
+  deadEntityIds: Record<string, boolean>;
 
   // Player input
   waitingOnPlayerInput: boolean;
@@ -119,6 +120,7 @@ export function createBattleState(
     room,
     actions: createQueue(),
     log: createQueue(),
+    deadEntityIds: {},
     entityAP,
     entityHealth,
     waitingOnPlayerInput: false,
@@ -148,13 +150,32 @@ export function addHeroToBattlefield(
   );
 }
 
+
+export function applyTurnDelta(state: BattleState, turnDelta: number): number {
+  return (state.turnIdx + turnDelta) % state.turnOrder.length;
+}
+
 export function battle(
   scene: THREE.Scene,
   state: BattleState,
   entityState: EntityState,
   turnDelta: number,
 ) {
-  state.turnIdx = (state.turnIdx + turnDelta) % state.turnOrder.length;
+  if (state.deadEntityIds[heroId]) {
+    alert("YOU DIED!");
+    return;
+  }
+ 
+  const lastTurnEntity = state.turnOrder[state.turnIdx];
+  state.turnOrder = state.turnOrder.filter(ge => !state.deadEntityIds[ge.id]);
+
+  if (state.turnOrder.length === 1) {
+    alert("You won!"); 
+    return;
+  }
+
+  state.turnIdx = state.turnOrder.findIndex(ge => ge.id === lastTurnEntity.id);
+  state.turnIdx = applyTurnDelta(state, turnDelta);
   const combatant = state.turnOrder[state.turnIdx];
   const heroXY = getCellXY(state.room, heroId);
 
@@ -366,7 +387,7 @@ function attack(
   const targetIds = [];
   for (let i = 0; i < attackArea.length; i++) {
     const targetId = getCell(state.room, attackArea[i]);
-    if (!getEntity(entityState, targetId)) {
+    if (!getEntity(entityState, targetId) || state.deadEntityIds[targetId]) {
       continue;
     }
     targetIds.push(targetId);
@@ -374,7 +395,13 @@ function attack(
       Math.round(Math.random() * entity.weapon.damageMult * entity.baseAttack) +
       entity.baseAttack;
 
-    state.entityHealth[targetId] = Math.max(0, state.entityHealth[targetId] - damage);
+    state.entityHealth[targetId] = Math.max(
+      0,
+      state.entityHealth[targetId] - damage,
+    );
+    if (state.entityHealth[targetId] === 0) {
+      state.deadEntityIds[targetId] = true;
+    }
     enqueue(state.log, {
       type: logItemTypes.damageRecieved,
       damageRecieved: damage,
@@ -434,11 +461,14 @@ function tickAttackAction(
           threeObj.lookAt(attackerThreeObj.position);
         }
       }
+      const idleAction = entityAnimation.controller.animations["idle"].action;
+      idleAction.setEffectiveWeight(0);
+      entityAnimation.animation.action.reset();
       entityAnimation.animation.action.time = 0.0;
       entityAnimation.animation.action.enabled = true;
-      entityAnimation.animation.action.setEffectiveWeight(10.0);
+      
+      entityAnimation.animation.action.setEffectiveWeight(1.0);
       entityAnimation.animation.action.clampWhenFinished = true;
-      entityAnimation.animation.action.reset();
       entityAnimation.animation.action.setLoop(THREE.LoopOnce, 1);
       entityAnimation.animation.action.setDuration(attackDuration);
       entityAnimation.animation.action.play();
@@ -460,7 +490,7 @@ function tickAttackAction(
       idleAction.setEffectiveWeight(1.0);
       idleAction.crossFadeFrom(entityAnimation.animation.action, 0.25, true);
       idleAction.play();
-    }
+    }     
 
     deque(state.actions);
   }

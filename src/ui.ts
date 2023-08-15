@@ -1,4 +1,4 @@
-import { type BattleState } from "./battle";
+import { applyTurnDelta, type BattleState } from "./battle";
 import { GameEntity, gameEntityTypes, heroId } from "./entities";
 
 export const HERO_ACTIONS_UI = "heroactionsui";
@@ -62,7 +62,6 @@ export function syncHeroAPDots(battleState: BattleState) {
   const start = battleState.entityAP[heroId] - battleState.currentActionAPCost;
   const end = battleState.entityAP[heroId];
   const apCircles = document.querySelectorAll(".ap-circle");
-  console.log(start, end);
   for (let i = 0; i < apCircles.length; i++) {
     const apCircle = apCircles[i] as HTMLDivElement;
     if (i >= start && i < end) {
@@ -75,16 +74,14 @@ export function syncHeroAPDots(battleState: BattleState) {
   }
 }
 
-function getEntityThumbnail(entity: GameEntity): string {
+function getEntityClass(entity: GameEntity): string {
   switch (entity.type) {
     case gameEntityTypes.hero:
-      return "/thumbnails/hero.png";
+      return "heroThumbnail";
     case gameEntityTypes.skeleton:
-      return "/thumbnails/skele.png";
+      return "skeletonThumbnail";
   }
 }
-
-const TURNBOX_ID = "turnbox";
 
 function entityTurnboxId(entity: GameEntity) {
   return `turnbox-${entity.id}`;
@@ -93,60 +90,51 @@ function entityTurnboxId(entity: GameEntity) {
 const entityBoxWidthPx = 40;
 const entityBoxGapPx = 10;
 function createTurnBoxUI(battleState: BattleState) {
-  const turnBox = document.createElement("div");
-  turnBox.id = TURNBOX_ID;
-  turnBox.style.position = "fixed";
-  turnBox.style.top = "0px";
-  turnBox.style.left = "0px";
-  turnBox.style.right = "0px";
-  turnBox.style.height = "50px";
-  turnBox.style.display = "flex";
-  turnBox.style.justifyContent = "center";
-  const turnboxCentered = document.createElement("div");
-  turnboxCentered.style.position = "relative";
-  const turnBoxWidthPx = entityBoxWidthPx * battleState.turnOrder.length;
-  turnboxCentered.style.width = `${turnBoxWidthPx}px`;
-  turnBox.appendChild(turnboxCentered);
+  const turnboxContainer = document.createElement("div");
+  turnboxContainer.id = "turnbox-container";
+  const turnbox = document.createElement("div");
+  turnbox.id = "turnbox";
+  const turnboxWidthPx = entityBoxWidthPx * battleState.turnOrder.length;
+  turnbox.style.width = `${turnboxWidthPx}px`;
+  turnboxContainer.appendChild(turnbox);
 
   for (let i = 0; i < battleState.turnOrder.length; i++) {
     const entity = battleState.turnOrder[i];
     const entityBox = document.createElement("div");
-    entityBox.style.position = "absolute";
+    entityBox.id = entityTurnboxId(entity);
+    entityBox.dataset.entityId = entity.id;
+    entityBox.classList.add("entityBox");
+    entityBox.classList.add(getEntityClass(entity));
+
     const left = entityBoxWidthPx * i + entityBoxGapPx * i;
     entityBox.style.left = `${left}px`;
-    entityBox.style.top = "0px";
-    entityBox.style.bottom = "0px";
-    entityBox.style.height = "50px";
     entityBox.style.width = `${entityBoxWidthPx}px`;
-    entityBox.style.color = "white";
-    entityBox.id = entityTurnboxId(entity);
-    entityBox.title = entity.id;
-    entityBox.style.background = `url(${getEntityThumbnail(entity)}`;
-    entityBox.style.backgroundSize = "cover";
-    entityBox.style.transition = "left";
-    entityBox.style.transitionDuration = "200ms";
 
     const healthBar = document.createElement("div");
-    healthBar.style.position = "absolute";
-    healthBar.style.left = "0px";
-    healthBar.style.bottom = "0px";
-    healthBar.style.height = "5px";
-    healthBar.style.background = "red";
-    healthBar.style.width = "100%";
+    healthBar.classList.add("healthBar");
 
     entityBox.appendChild(healthBar);
-    turnboxCentered.appendChild(entityBox);
+    turnbox.appendChild(entityBox);
   }
 
-  document.body.appendChild(turnBox);
+  document.body.appendChild(turnboxContainer);
 }
 
 function syncTurnbox(battleState: BattleState) {
+  const entityBoxes = document.querySelectorAll(".entityBox:not(.fadeOut)");
+  entityBoxes.forEach((el) => {
+    const _el = el as HTMLDivElement;
+    if (battleState.deadEntityIds[_el.dataset.entityId!]) {
+      el.classList.add("fadeOut");
+    }
+  });
+
   for (let i = 0; i < battleState.turnOrder.length; i++) {
-    const truIdx = (battleState.turnIdx + i) % battleState.turnOrder.length;
+    const truIdx = applyTurnDelta(battleState, i);
     const entity = battleState.turnOrder[truIdx];
+
     const entityHealth = battleState.entityHealth[entity.id];
-    const entityBox = document.getElementById(entityTurnboxId(entity));
+    const entityBox = document.getElementById(entityTurnboxId(entity))!;
     if (!entityBox) {
       continue;
     }
@@ -154,7 +142,6 @@ function syncTurnbox(battleState: BattleState) {
     entityBox.style.left = `${left}px`;
     const widthPrcnt =
       100 - ((entity.baseHealth - entityHealth) / entity.baseHealth) * 100;
-    console.log(entity.id, entityHealth, widthPrcnt)
     const healthBar = entityBox.querySelector("div");
     if (!healthBar) {
       continue;
