@@ -7,12 +7,16 @@ import {
   heroId,
 } from "./entities";
 import { GameInputState } from "./GameInput";
+import { getCellType, scenePosToXy } from "./map/grid";
+import { W } from "./map/constants";
+import { isCollidingWithWall, type MapState } from "./map/rendering";
 
 const DECELERATION = new THREE.Vector3(-0.0005, -0.0001, -5.0);
 const ACCELERATION = new THREE.Vector3(1, 0.25, 25.0);
 
 export function updateHeroPosition(
   scene: THREE.Scene,
+  mapState: MapState,
   velocity: THREE.Vector3,
   input: GameInputState,
   timeElapsedS: number,
@@ -73,15 +77,19 @@ export function updateHeroPosition(
   forward.applyQuaternion(controlObject.quaternion);
   forward.normalize();
 
-  const sideways = new THREE.Vector3(1, 0, 0);
-  sideways.applyQuaternion(controlObject.quaternion);
-  sideways.normalize();
-
   forward.multiplyScalar(velocity.z * timeElapsedS);
-  sideways.multiplyScalar(velocity.x * timeElapsedS);
+  const next = controlObject.position.clone();
 
-  controlObject.position.add(forward);
-  controlObject.position.add(sideways);
+  next.add(forward);
+
+  const xy = scenePosToXy(mapState.grid, next);
+  const nextCellType = getCellType(mapState.grid, xy);
+  if (nextCellType === W) {
+      if(isCollidingWithWall(mapState, xy, next)) {
+        return;
+      }
+  }
+  controlObject.position.copy(next);
 }
 
 // correlates to loaded hero animations

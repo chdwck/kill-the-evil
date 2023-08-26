@@ -7,13 +7,13 @@ import {
   registerEntity,
   updateAllAnimations,
 } from "./entities";
-import {
-  createEntryRoom,
-  renderBattlefield,
-  renderRoom,
-  teardownBattlefield,
-} from "./rooms";
-import { createTacticsCameraState, tickTacticsCamera } from "./TacticsCamera";
+// import {
+//   createEntryRoom,
+//   renderBattlefield,
+//   renderRoom,
+//   teardownBattlefield,
+// } from "./rooms";
+// import { createTacticsCameraState, tickTacticsCamera } from "./TacticsCamera";
 import {
   createThirdPersonCameraState,
   tickThirdPersonCameraFollow,
@@ -24,23 +24,26 @@ import {
   heroAnimationStates,
   HeroAnimationState,
 } from "./heroExploration";
-import {
-  BattleState,
-  addHeroToBattlefield,
-  battle,
-  createBattleState,
-  tickBattleState,
-} from "./battle";
-import { initBattleUI, syncBattleUI } from "./ui";
+// import {
+//   BattleState,
+//   addHeroToBattlefield,
+//   battle,
+//   createBattleState,
+//   tickBattleState,
+// } from "./battle";
+// import { initBattleUI, syncBattleUI } from "./ui";
+// import { renderFloor1 } from "./floors/floor1";
+import { createMapState, renderMap } from "./map/rendering";
+import floor1 from "./map/grids/floor1";
 
 const ASPECT_RATIO = 1920 / 1080;
 
-const gameStates = {
-  explore: "explore",
-  battle: "battle",
-} as const;
+// const gameStates = {
+//   explore: "explore",
+//   battle: "battle",
+// } as const;
 
-type GameState = keyof typeof gameStates;
+// type GameState = keyof typeof gameStates;
 
 async function main() {
   const width = window.innerWidth;
@@ -72,37 +75,43 @@ async function main() {
   const hero = registerEntity(entityState, createHero());
   const heroThreeObj = await loadThreeObj(scene, entityState, hero);
 
-  const entryRoom = createEntryRoom(entityState, new THREE.Vector3(0, 0, 0));
+  // const entryRoom = createEntryRoom(entityState, new THREE.Vector3(0, 0, 0));
   // TODO: May need to make this async
-  renderRoom(scene, entityState, entryRoom);
+  // renderRoom(scene, entityState, entryRoom);
+  //
+  //
 
-  let gameState: GameState = gameStates.explore;
+  const mapState = createMapState(floor1);
+  renderMap(scene, mapState);
 
-  const tacticsCameraState = createTacticsCameraState(camera, entryRoom);
+  // let gameState: GameState = gameStates.explore;
+
+  // const tacticsCameraState = createTacticsCameraState(camera, entryRoom);
   const thirdPersonCameraState = createThirdPersonCameraState();
 
   const heroVelocity = new THREE.Vector3(0, 0, 0);
   let heroAnimationState: HeroAnimationState = heroAnimationStates.idle;
 
-  let battleState: BattleState;
-  function switchToBattleState() {
-    battleState = createBattleState(scene, entityState, entryRoom);
-    addHeroToBattlefield(scene, battleState, entityState);
-    renderBattlefield(scene, entryRoom);
-    initBattleUI(battleState);
-    battle(scene, battleState, entityState, 0);
-    gameState = gameStates.battle;
-  }
+  // let battleState: BattleState;
+  // function switchToBattleState() {
+  //   battleState = createBattleState(scene, entityState, entryRoom);
+  //   addHeroToBattlefield(scene, battleState, entityState);
+  //   renderBattlefield(scene, entryRoom);
+  //   initBattleUI(battleState);
+  //   battle(scene, battleState, entityState, 0);
+  //   gameState = gameStates.battle;
+  // }
+
   function update(timeElapsedS: number) {
     renderer.render(scene, camera);
 
-    if (gameState === gameStates.explore) {
-      if (inputState.battleView) {
-        switchToBattleState();
-        return;
-      }
+  //   if (gameState === gameStates.explore) {
+  //     if (inputState.battleView) {
+  //       switchToBattleState();
+  //       return;
+  //     }
 
-      updateHeroPosition(scene, heroVelocity, inputState, timeElapsedS);
+      updateHeroPosition(scene, mapState, heroVelocity, inputState, timeElapsedS);
       heroAnimationState = updateHeroExploreAnimations(
         heroAnimationState,
         entityState,
@@ -114,33 +123,33 @@ async function main() {
         heroThreeObj,
         timeElapsedS,
       );
-    } else if (gameState === gameStates.battle) {
-      if (!inputState.battleView) {
-        teardownBattlefield(scene, entryRoom);
-        gameState = gameStates.explore;
-        return;
-      }
+  //   } else if (gameState === gameStates.battle) {
+  //     if (!inputState.battleView) {
+  //       teardownBattlefield(scene, entryRoom);
+  //       gameState = gameStates.explore;
+  //       return;
+  //     }
 
-      tickTacticsCamera(
-        tacticsCameraState,
-        inputState,
-        camera,
-        entryRoom,
-        heroThreeObj.position,
-        timeElapsedS,
-      );
+  //     tickTacticsCamera(
+  //       tacticsCameraState,
+  //       inputState,
+  //       camera,
+  //       entryRoom,
+  //       heroThreeObj.position,
+  //       timeElapsedS,
+  //     );
 
-      tickBattleState(
-        scene,
-        battleState,
-        entityState,
-        inputState,
-        tacticsCameraState,
-        timeElapsedS,
-      );
+  //     tickBattleState(
+  //       scene,
+  //       battleState,
+  //       entityState,
+  //       inputState,
+  //       tacticsCameraState,
+  //       timeElapsedS,
+  //     );
 
-      syncBattleUI(battleState);
-    }
+  //     syncBattleUI(battleState);
+  //   }
 
     updateAllAnimations(entityState, timeElapsedS);
   }
