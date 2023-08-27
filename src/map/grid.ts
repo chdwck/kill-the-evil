@@ -1,8 +1,7 @@
 import { Vector3 } from "three";
 import { CELL_SIZE } from "../rooms";
 import { CellType, HALF_CELL, W, n } from "./constants";
-import { Vec2, addVec2, directions, equalsVec2, getDir, midpoint } from "./vec2";
-import { midpoint3 } from "./3d";
+import { Vec2, addVec2 } from "./vec2";
 
 export type Grid = CellType[][];
 

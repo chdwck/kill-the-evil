@@ -19,7 +19,7 @@ import {
     xyToScenePos,
 } from "./grid";
 import { W, S, CELL_SIZE, WALL_HEIGHT, _ } from "./constants";
-import { Vec2, addVec2 } from "./vec2";
+import { Vec2, addVec2, interpolate } from "./vec2";
 import { midpoint3 } from "./3d";
 import { getThreeObj, heroId } from "../entities";
 
@@ -32,16 +32,10 @@ const loader = new TextureLoader();
 const texture = loader.load("mossy.jpg");
 const mat = new MeshBasicMaterial({ map: texture, side: DoubleSide });
 
-type CollideBox = {
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-}
-
 export type Wall = {
-    name: string;
-    collideBox: CollideBox;
+    from: Vec2;
+    to: Vec2;
+    dist: number;
 }
 type WallRecord = Record<string, Wall>;
 
@@ -59,24 +53,21 @@ export function createMapState(grid: Grid): MapState {
     };
 }
 
-function trackWallCollideBox(
+function trackWall(
     mapState: MapState,
-    wallCellNames: string[],
-    wallCollideBox: CollideBox
+    cellNames: string[],
+    wall: Wall
 ) {
     const wallName = `wall-${Object.keys(mapState.walls).length}`;
-    for (let i = 0; i < wallCellNames.length; i++) {
-        mapState.cellToWall[wallCellNames[i]] ??= [];
-        mapState.cellToWall[wallCellNames[i]].push(wallName);
+    for (let i = 0; i < cellNames.length; i++) {
+        mapState.cellToWall[cellNames[i]] ??= [];
+        mapState.cellToWall[cellNames[i]].push(wallName);
     }
 
-    mapState.walls[wallName] = {
-        name: wallName,
-        collideBox: wallCollideBox
-    };
+    mapState.walls[wallName] = wall;
 }
 
-const colliderSizeBuffer = .2;
+const colliderSizeBuffer = .3;
 export function isCollidingWithWall(
     mapState: MapState,
     cellPos: Vec2,
@@ -89,13 +80,19 @@ export function isCollidingWithWall(
     }
     for (let i = 0; i < wallNames.length; i++) {
         const wall = mapState.walls[wallNames[i]];
-        if (
-            wall.collideBox.x < next.x + colliderSizeBuffer &&
-            wall.collideBox.x + wall.collideBox.width > next.x - colliderSizeBuffer &&
-            wall.collideBox.y > next.z - colliderSizeBuffer &&
-            wall.collideBox.y - wall.collideBox.height < next.z - colliderSizeBuffer
-        ) {
-            return true;
+        for (let j = 0; j < wall.dist; j += 0.1) {
+            const fraction = j / wall.dist;
+            const [iX, iY] = interpolate(wall.from, wall.to, fraction);
+            // console.log(wall, next, iX, iY);
+            const isColliding = (
+                iX < next.x + colliderSizeBuffer &&
+                iX > next.x - colliderSizeBuffer &&
+                iY > next.z - colliderSizeBuffer &&
+                iY < next.z + colliderSizeBuffer
+            );
+            if (isColliding) {
+                return true;
+            }
         }
     }
 
@@ -123,6 +120,7 @@ export function renderMap(scene: Scene, mapState: MapState) {
                 if (begin === null || end === null) {
                     begin = null;
                     end = null;
+                    wallCells = [];
                     continue;
                 }
 
@@ -131,21 +129,20 @@ export function renderMap(scene: Scene, mapState: MapState) {
                 }
                 const dist = (end - begin) * CELL_SIZE;
                 const geo = new PlaneGeometry(dist, WALL_HEIGHT, 1, 1);
-                const wall = new Mesh(geo, mat);
+                const mesh = new Mesh(geo, mat);
                 const point = xyToScenePos(mapState.grid, [begin, y]);
 
-                wall.position.setY(1);
-                wall.position.setZ(point.z);
-                wall.position.setX(point.x + dist / 2);
-                const collideBox = {
-                    x: point.x,
-                    y: point.z + colliderSizeBuffer,
-                    width: dist,
-                    height: colliderSizeBuffer * 2,
+                mesh.position.setY(1);
+                mesh.position.setZ(point.z);
+                mesh.position.setX(point.x + dist / 2);
+                const wall = {
+                    from: [point.x, point.z] as Vec2,
+                    to: [point.x + dist, point.z] as Vec2,
+                    dist
                 };
-                trackWallCollideBox(mapState, wallCells, collideBox);
+                trackWall(mapState, wallCells, wall);
 
-                scene.add(wall);
+                scene.add(mesh);
 
                 begin = null;
                 end = null;
@@ -174,6 +171,7 @@ export function renderMap(scene: Scene, mapState: MapState) {
                 if (begin === null || end === null) {
                     begin = null;
                     end = null;
+                    wallCells = [];
                     continue;
                 }
                 if (y === height - 1 && cellType === W) {
@@ -181,22 +179,21 @@ export function renderMap(scene: Scene, mapState: MapState) {
                 }
                 const dist = (end - begin) * CELL_SIZE;
                 const geo = new PlaneGeometry(dist, WALL_HEIGHT, 1, 1);
-                const wall = new Mesh(geo, mat);
+                const mesh = new Mesh(geo, mat);
                 const point = xyToScenePos(mapState.grid, [x, begin]);
 
-                wall.position.setY(1);
-                wall.position.setZ(point.z - dist / 2);
-                wall.position.setX(point.x);
-                wall.rotation.y = Math.PI / 2;
-                const collideBox = {
-                    x: point.x - colliderSizeBuffer,
-                    y: point.z,
-                    width: colliderSizeBuffer * 2,
-                    height: dist,
+                mesh.position.setY(1);
+                mesh.position.setZ(point.z - dist / 2);
+                mesh.position.setX(point.x);
+                mesh.rotation.y = Math.PI / 2;
+                const wall = {
+                    from: [point.x, point.z] as Vec2,
+                    to: [point.x, point.z - dist] as Vec2,
+                    dist
                 };
-                trackWallCollideBox(mapState, wallCells, collideBox);
+                trackWall(mapState, wallCells, wall);
 
-                scene.add(wall);
+                scene.add(mesh);
 
                 begin = null;
                 end = null;
@@ -228,6 +225,7 @@ export function renderMap(scene: Scene, mapState: MapState) {
                     begin = null;
                     end = null;
                     curr = next;
+                    wallCells = [];
                     continue;
                 }
                 if (!nextIsInRange && cellType === W) {
@@ -238,18 +236,21 @@ export function renderMap(scene: Scene, mapState: MapState) {
 
                 const dist = begin3Pos.distanceTo(end3Pos);
                 const geo = new PlaneGeometry(dist, WALL_HEIGHT, 1, 1);
-                const wall = new Mesh(geo, mat);
-                wall.rotation.y = -Math.PI / 4;
-                wall.position.copy(midpoint3(begin3Pos, end3Pos));
-               // const collideBox: CollideBox = {
-               //    isDiagonal: true,
-               // };
-                //trackWallCollideBox(mapState, wallCells, collideBox);
+                const mesh = new Mesh(geo, mat);
+                mesh.rotation.y = -Math.PI / 4;
+                mesh.position.copy(midpoint3(begin3Pos, end3Pos));
+                const wall = {
+                    from: [begin3Pos.x, begin3Pos.z] as Vec2,
+                    to: [end3Pos.x, end3Pos.z] as Vec2,
+                    dist
+                };
+                trackWall(mapState, wallCells, wall);
 
-                scene.add(wall);
+                scene.add(mesh);
 
                 begin = null;
                 end = null;
+                wallCells = [];
                 curr = next;
                 continue;
             }
@@ -268,6 +269,7 @@ export function renderMap(scene: Scene, mapState: MapState) {
         let curr: Vec2 = [width - 1, y];
         let begin: Vec2 | null = null;
         let end: Vec2 | null = null;
+        wallCells = [];
         while (isPosInGrid(mapState.grid, curr)) {
             const cellType = getCellType(mapState.grid, curr);
             const next = addVec2(curr, [-1, -1]);
@@ -276,6 +278,7 @@ export function renderMap(scene: Scene, mapState: MapState) {
                 if (begin === null || end === null) {
                     begin = null;
                     end = null;
+                    wallCells = [];
                     curr = next;
                     continue;
                 }
@@ -287,14 +290,21 @@ export function renderMap(scene: Scene, mapState: MapState) {
 
                 const dist = begin3Pos.distanceTo(end3Pos);
                 const geo = new PlaneGeometry(dist, WALL_HEIGHT, 1, 1);
-                const wall = new Mesh(geo, mat);
-                wall.rotation.y = Math.PI / 4;
-                wall.position.copy(midpoint3(begin3Pos, end3Pos));
+                const mesh = new Mesh(geo, mat);
+                mesh.rotation.y = Math.PI / 4;
+                mesh.position.copy(midpoint3(begin3Pos, end3Pos));
+                const wall = {
+                    from: [begin3Pos.x, begin3Pos.z] as Vec2,
+                    to: [end3Pos.x, end3Pos.z] as Vec2,
+                    dist
+                };
+                trackWall(mapState, wallCells, wall);
 
-                scene.add(wall);
+                scene.add(mesh);
 
                 begin = null;
                 end = null;
+                wallCells = [];
                 curr = next;
                 continue;
             }
@@ -305,6 +315,7 @@ export function renderMap(scene: Scene, mapState: MapState) {
                 end = curr;
             }
 
+            wallCells.push(cellName(W, ...curr));
             curr = next;
         }
     }
@@ -314,6 +325,7 @@ export function renderMap(scene: Scene, mapState: MapState) {
         let curr: Vec2 = [width - 1, y];
         let begin: Vec2 | null = null;
         let end: Vec2 | null = null;
+        wallCells = [];
         while (isPosInGrid(mapState.grid, curr)) {
             const cellType = getCellType(mapState.grid, curr);
             const next = addVec2(curr, [-1, 1]);
@@ -322,6 +334,7 @@ export function renderMap(scene: Scene, mapState: MapState) {
                 if (begin === null || end === null) {
                     begin = null;
                     end = null;
+                    wallCells = [];
                     curr = next;
                     continue;
                 }
@@ -333,14 +346,20 @@ export function renderMap(scene: Scene, mapState: MapState) {
 
                 const dist = begin3Pos.distanceTo(end3Pos);
                 const geo = new PlaneGeometry(dist, WALL_HEIGHT, 1, 1);
-                const wall = new Mesh(geo, mat);
-                wall.rotation.y = -Math.PI / 4;
-                wall.position.copy(midpoint3(begin3Pos, end3Pos));
-
-                scene.add(wall);
+                const mesh = new Mesh(geo, mat);
+                mesh.rotation.y = -Math.PI / 4;
+                mesh.position.copy(midpoint3(begin3Pos, end3Pos));
+                const wall = {
+                    from: [begin3Pos.x, begin3Pos.z] as Vec2,
+                    to: [end3Pos.x, end3Pos.z] as Vec2,
+                    dist
+                };
+                trackWall(mapState, wallCells, wall);
+                scene.add(mesh);
 
                 begin = null;
                 end = null;
+                wallCells = [];
                 curr = next;
                 continue;
             }
@@ -351,6 +370,7 @@ export function renderMap(scene: Scene, mapState: MapState) {
                 end = curr;
             }
 
+            wallCells.push(cellName(W, ...curr));
             curr = next;
         }
     }
@@ -360,6 +380,7 @@ export function renderMap(scene: Scene, mapState: MapState) {
         let curr: Vec2 = [0, y];
         let begin: Vec2 | null = null;
         let end: Vec2 | null = null;
+        wallCells = [];
         while (isPosInGrid(mapState.grid, curr)) {
             const cellType = getCellType(mapState.grid, curr);
             const next = addVec2(curr, [1, 1]);
@@ -368,6 +389,7 @@ export function renderMap(scene: Scene, mapState: MapState) {
                 if (begin === null || end === null) {
                     begin = null;
                     end = null;
+                    wallCells = [];
                     curr = next;
                     continue;
                 }
@@ -379,15 +401,23 @@ export function renderMap(scene: Scene, mapState: MapState) {
 
                 const dist = begin3Pos.distanceTo(end3Pos);
                 const geo = new PlaneGeometry(dist, WALL_HEIGHT, 1, 1);
-                const wall = new Mesh(geo, mat);
-                wall.rotation.y = Math.PI / 4;
-                wall.position.copy(midpoint3(begin3Pos, end3Pos));
+                const mesh = new Mesh(geo, mat);
+                mesh.rotation.y = Math.PI / 4;
+                mesh.position.copy(midpoint3(begin3Pos, end3Pos));
 
-                scene.add(wall);
+                const wall = {
+                    from: [begin3Pos.x, begin3Pos.z] as Vec2,
+                    to: [end3Pos.x, end3Pos.z] as Vec2,
+                    dist
+                };
+                trackWall(mapState, wallCells, wall);
+
+                scene.add(mesh);
 
                 begin = null;
                 end = null;
                 curr = next;
+                wallCells = [];
                 continue;
             }
 
@@ -397,6 +427,7 @@ export function renderMap(scene: Scene, mapState: MapState) {
                 end = curr;
             }
 
+            wallCells.push(cellName(W, ...curr));
             curr = next;
         }
     }
@@ -435,6 +466,5 @@ export function renderMap(scene: Scene, mapState: MapState) {
     hero3Obj.position.setY(0);
 
     floor.rotation.x = -Math.PI / 2;
-    // floor.position.set(0, 0, 0);
     scene.add(floor);
 }
