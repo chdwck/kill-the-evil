@@ -16,6 +16,7 @@ import {
     getCellType,
     getDimensions,
     isPosInGrid,
+    scenePosToXy,
     xyToScenePos,
 } from "./grid";
 import { W, S, CELL_SIZE, WALL_HEIGHT, _ } from "./constants";
@@ -70,9 +71,13 @@ function trackWall(
 const colliderSizeBuffer = .3;
 export function isCollidingWithWall(
     mapState: MapState,
-    cellPos: Vec2,
     next: Vector3
 ): boolean {
+    const cellPos = scenePosToXy(mapState.grid, next);
+    const nextCellType = getCellType(mapState.grid, cellPos);
+    if (nextCellType !== W) {
+        return false;
+    }
     const [x, y] = cellPos;
     const wallNames = mapState.cellToWall[cellName(W, x, y)];
     if (!wallNames?.length) {
