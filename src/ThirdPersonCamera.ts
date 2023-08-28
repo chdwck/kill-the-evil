@@ -1,35 +1,43 @@
-import * as THREE from "three";
+import { Vector3, Group, PerspectiveCamera } from "three";
+import { MapState, isLineCollidingWithWall } from "./map/rendering";
 
 type ThirdPersonCameraState = {
-  currentPosition: THREE.Vector3;
-  currentLookAt: THREE.Vector3;
+    currentLookAt: Vector3;
 };
 
 export function createThirdPersonCameraState() {
-  return {
-    currentPosition: new THREE.Vector3(),
-    currentLookAt: new THREE.Vector3(),
-  };
+    return {
+        currentLookAt: new Vector3(),
+    };
 }
 
 export function tickThirdPersonCameraFollow(
-  state: ThirdPersonCameraState,
-  camera: THREE.PerspectiveCamera,
-  target: THREE.Group,
-  timeElapsedS: number,
+    state: ThirdPersonCameraState,
+    mapState: MapState,
+    camera: PerspectiveCamera,
+    target: Group,
+    timeElapsedS: number,
 ) {
-  const idealOffset = new THREE.Vector3(-1.5, 1.5, -3.0);
-  idealOffset.applyQuaternion(target.quaternion);
-  idealOffset.add(target.position);
+    const idealOffsetBase = new Vector3(0, 1.5, -3.0);
+    let idealOffset = idealOffsetBase.clone();
+    let isColliding = false;
+    let inc = 0;
+    do {
+        idealOffset = idealOffsetBase.clone();
+        idealOffset.setZ(idealOffsetBase.z + inc);
+        idealOffset.applyQuaternion(target.quaternion);
+        idealOffset.add(target.position);
+        isColliding = isLineCollidingWithWall(mapState, idealOffset, target.position);
+        inc += 0.1;
+    } while (isColliding && (inc + idealOffsetBase.z) < 0);
 
-  const idealLookAt = new THREE.Vector3(0, 10, 50);
-  idealLookAt.applyQuaternion(target.quaternion);
-  idealLookAt.add(target.position);
+    const idealLookAt = new Vector3(0, 10, 50);
+    idealLookAt.applyQuaternion(target.quaternion);
+    idealLookAt.add(target.position);
 
-  const t = 1.25 - Math.pow(0.001, timeElapsedS);
-  state.currentPosition.lerp(idealOffset, t);
-  state.currentLookAt.lerp(idealLookAt, t);
+    const t = 1.1 - Math.pow(0.001, timeElapsedS);
+    camera.position.lerp(idealOffset, t);
 
-  camera.position.copy(state.currentPosition);
-  camera.lookAt(idealLookAt);
+    state.currentLookAt.lerp(idealLookAt, t);
+    camera.lookAt(state.currentLookAt);
 }

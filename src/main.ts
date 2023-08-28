@@ -119,6 +119,7 @@ async function main() {
       );
       tickThirdPersonCameraFollow(
         thirdPersonCameraState,
+        mapState,
         camera,
         heroThreeObj,
         timeElapsedS,

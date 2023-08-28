@@ -68,10 +68,37 @@ function trackWall(
     mapState.walls[wallName] = wall;
 }
 
-const colliderSizeBuffer = .3;
+export function isLineCollidingWithWall(
+    mapState: MapState,
+    from: Vector3,
+    to: Vector3
+) {
+    const zInc = Math.sign(to.z - from.z);
+    const xInc = Math.sign(to.x - from.x);
+    const zIncOpp = -1 * zInc;
+    const xIncOpp = -1 * xInc;
+
+    let z = from.z;
+    let x = from.x;
+    while (
+        Math.sign(to.z - z) !== zIncOpp ||
+        Math.sign(to.x - x) !== xIncOpp
+    ) {
+        const posOnLine = new Vector3(x, from.y, z);
+        if (isCollidingWithWall(mapState, posOnLine, 1)) {
+            return true;
+        }
+        z += zInc;
+        x += xInc;
+    }
+
+    return false;
+}
+
 export function isCollidingWithWall(
     mapState: MapState,
-    next: Vector3
+    next: Vector3,
+    colliderSizeBuffer: number,
 ): boolean {
     const cellPos = scenePosToXy(mapState.grid, next);
     const nextCellType = getCellType(mapState.grid, cellPos);
@@ -88,7 +115,6 @@ export function isCollidingWithWall(
         for (let j = 0; j < wall.dist; j += 0.1) {
             const fraction = j / wall.dist;
             const [iX, iY] = interpolate(wall.from, wall.to, fraction);
-            // console.log(wall, next, iX, iY);
             const isColliding = (
                 iX < next.x + colliderSizeBuffer &&
                 iX > next.x - colliderSizeBuffer &&
