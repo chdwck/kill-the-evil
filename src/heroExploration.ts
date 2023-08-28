@@ -80,7 +80,7 @@ export function updateHeroPosition(
 
     next.add(forward);
 
-    if (isCollidingWithWall(mapState, next, 0.2)) {
+    if (isCollidingWithWall(mapState, next, 0.4)) {
         return;
     }
     controlObject.position.copy(next);
