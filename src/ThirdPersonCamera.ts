@@ -21,15 +21,42 @@ export function tickThirdPersonCameraFollow(
     const idealOffsetBase = new Vector3(0, 1.5, -3.0);
     let idealOffset = idealOffsetBase.clone();
     let isColliding = false;
-    let inc = 0;
+    let zInc = 0;
     do {
         idealOffset = idealOffsetBase.clone();
-        idealOffset.setZ(idealOffsetBase.z + inc);
+        idealOffset.setZ(idealOffsetBase.z + zInc);
         idealOffset.applyQuaternion(target.quaternion);
         idealOffset.add(target.position);
-        isColliding = isLineCollidingWithWall(mapState, idealOffset, target.position);
-        inc += 0.1;
-    } while (isColliding && (inc + idealOffsetBase.z) < 0);
+        isColliding = isLineCollidingWithWall(
+            mapState, idealOffset, target.position);
+        zInc += 0.1;
+    } while (isColliding && zInc < 3);
+
+    if (Math.abs(target.quaternion.y) > 0.5) {
+        let xInc = 1.75;
+        while (isColliding && xInc >= -1.75) {
+            idealOffset = idealOffsetBase.clone();
+            idealOffset.setX(xInc);
+            idealOffset.setZ(idealOffsetBase.z + zInc);
+            idealOffset.applyQuaternion(target.quaternion);
+            idealOffset.add(target.position);
+            isColliding = isLineCollidingWithWall(
+                mapState, idealOffset, target.position);
+            xInc -= 0.1;
+        }
+    } else {
+        let xInc = -1.75;
+        while (isColliding && xInc <= 1.75) {
+            idealOffset = idealOffsetBase.clone();
+            idealOffset.setX(xInc);
+            idealOffset.setZ(idealOffsetBase.z + zInc);
+            idealOffset.applyQuaternion(target.quaternion);
+            idealOffset.add(target.position);
+            isColliding = isLineCollidingWithWall(
+                mapState, idealOffset, target.position);
+            xInc += 0.1;
+        }
+    }
 
     const idealLookAt = new Vector3(0, 10, 50);
     idealLookAt.applyQuaternion(target.quaternion);
